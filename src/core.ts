@@ -213,12 +213,17 @@ type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
 
 type Ability = {
   trigger: Trigger
+  mandatory: boolean
+  reactor: boolean
   conditions?: Condition[]
   effects: Effect[]
-  target?: CardCriteria[]
+  target?: TargetType
+  //todo hopt
 }
 
-
+type TargetType = {type: "Single Card", criteria: CardCriteria[]}
+  | {type: "Multi Card", comparison: Comparison, criteria: CardCriteria[]}
+  | {type: "A and B", criteriaA: CardCriteria[], criteriaB: CardCriteria[]}
 
 // --------------- test --------------- //
 
