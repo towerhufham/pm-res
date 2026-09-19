@@ -155,6 +155,16 @@ class GameState {
     //todo valid targets
     return true
   }
+
+  getAllActivatableAbilities(player: number): [Card, Ability][] {
+    const found: [Card, Ability][] = []
+    for (const card of this.cards) {
+      for (const ability of card.abilities) {
+        if (this.canActivateAbility(player, card, ability)) found.push([card, ability])
+      }
+    }
+    return found
+  }
 }
 
 class Decklist {
@@ -195,13 +205,15 @@ class CardDefinition {
   cardType: CardType
   ex: boolean
   // restriction?: Restriction
+  abilities: Ability[]
 
-  constructor(identifier: string, name: string, colors: Color[], cardType: CardType, ex: boolean) {
+  constructor(identifier: string, name: string, colors: Color[], cardType: CardType, ex: boolean, abilities: Ability[]) {
     this.identifier = identifier
     this.name = name
     this.colors = colors
     this.cardType = cardType
     this.ex = ex
+    this.abilities = abilities
   }
 }
 
@@ -215,6 +227,7 @@ class Card {
   ownedBy: number
   controlledBy: number
   zone: Zone
+  abilities: Ability[]
 
   constructor(id: number, definition: CardDefinition, ownedBy: number) {
     this.id = id
@@ -225,6 +238,7 @@ class Card {
     this.ex = definition.ex
     this.ownedBy = ownedBy
     this.controlledBy = ownedBy
+    this.abilities = definition.abilities
     //todo this logic is duplicated and easily extractible
     if (definition.cardType === "World") {
       this.zone = "World"
@@ -300,10 +314,21 @@ const d = new CardDefinition(
   "Pythagorean Angel",
   ["Yellow", "Teal"],
   "Esper",
-  false
+  false,
+  [
+    {
+      trigger: {type: "Activated"},
+      mandatory: false,
+      reactor: false,
+      conditions: [{type: "In zone", zone: "Hand"}],
+      effects: [{type: "Summon"}]
+    }
+  ]
 )
 const list = new Decklist(Array(50).fill(d))
 const game = new GameState([list])
 console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
+console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
 game.draw(0)
 console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
+console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
