@@ -5,22 +5,31 @@ type LogEntry = { type: "Effects", effectAtom: EffectAtom[] }
   | { type: "Trigger", card: Card, ability: Ability }
   | { type: "End Turn" }
 
+//todo maybe [Card, Ability] should be a standardized type, or maybe it's self-explanatory
+
+//todo server rng response, mulligans, betting, arbitrary choices
+type WaitingOn = {type: "Main", player: number}
+  | {type: "Targets", player: number, card: Card, ability: Ability}
+  | {type: "Optional trigger", player: number, card: Card, ability: Ability}
+  | {type: "Trigger order", player: number, cardsAndAbilities: [Card, Ability][]}
+
 class GameState {
   players: Decklist[]
   cards: Card[]
   log: LogEntry[]
   round: number
   turnPlayer: number
-  priorityPlayer: number
+  waitingOn: WaitingOn
   nextId: number
 
   constructor(decklists: Decklist[]) {
+    if (decklists.length === 0) throw new Error(`can't make a game with no players!`)
     this.players = decklists
     this.cards = []
     this.log = [] //todo setup in logs
     this.round = 1
     this.turnPlayer = 0
-    this.priorityPlayer = 0
+    this.waitingOn = {type: "Main", player: 0}
     this.nextId = 0
     this.setup()
   }
