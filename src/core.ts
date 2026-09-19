@@ -39,7 +39,7 @@ class GameState {
         const card = this.spawnCard(playerIndex, main)
         this.moveCard(card, "Deck")
       }
-      //todo server rng
+      //todo deck order and/or server rng
       // this.shuffleDeck(playerIndex)
     }
   }
@@ -52,6 +52,15 @@ class GameState {
     //todo maybe guard ex as well
     // if (to === "Deck") throw new Error("can't use moveCard to move to deck!")
     card.zone = to
+  }
+
+  draw(player: number): boolean {
+    //false if decked out
+    const inDeck = this.cardsInZone(player, "Deck")
+    if (inDeck.length === 0) return false
+    //todo log?
+    this.moveCard(inDeck[0]!, "Hand")
+    return true
   }
 
   spawnCard(player: number, definition: CardDefinition): Card {
@@ -223,5 +232,5 @@ const d = new CardDefinition(
 const list = new Decklist(Array(50).fill(d))
 const game = new GameState([list])
 console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
-game.moveCard(game.cards[0]!, "Hand")
+game.draw(0)
 console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
