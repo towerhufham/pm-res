@@ -6,8 +6,9 @@ type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
   | {type: "End Turn"}
 
 //todo server rng response, mulligans, betting, arbitrary choices
-type WaitingOn = {type: "Main", player: number} //todo maybe possible acs in here
-  | {type: "Targets", ac: AbilityContext}
+type WaitingOn = {type: "Setting up..."}
+  | {type: "Main", player: number, options: AbilityContext[]}
+  | {type: "Targets", ac: AbilityContext, options: Card[]}
   | {type: "Optional trigger", ac: AbilityContext}
   | {type: "Trigger order", acs: AbilityContext[]}
 
@@ -27,7 +28,7 @@ class GameState {
     this.log = [] //todo setup in logs
     this.round = 1
     this.turnPlayer = 0
-    this.waitingOn = {type: "Main", player: 0}
+    this.waitingOn = {type: "Setting up..."}
     this.nextId = 0
     this.setup()
   }
@@ -49,6 +50,8 @@ class GameState {
       //todo deck order and/or server rng
       // this.shuffleDeck(playerIndex)
     }
+    //todo draw hand and/or mull
+    this.waitingOn = {type: "Main", player: 0, options: this.getAllActivatableAbilities(0)}
   }
 
   // shuffleDeck(player: number): void {
@@ -177,15 +180,22 @@ class GameState {
 
   startActivation(ac: AbilityContext): void {
     if (!this.canActivateAbility(ac)) {
-      throw new Error(`trying to activate ability ${ac.ability}`)
+      throw new Error(`trying to activate non-activatable ability ${ac}`)
     }
     if (!ac.ability.target) {
       //todo this should be extracted for safety/DRY reasons
       const atoms = this.buildEffectAtoms(ac)
       this.applyEffectAtoms(atoms)
     } else {
-      this.waitingOn = {type: "Targets", ac}
+      this.waitingOn = {type: "Targets", ac, options: this.getValidTargets(ac)}
     }
+  }
+
+  getValidTargets(ac: AbilityContext): Card[] {
+    if (!ac.ability.target) throw new Error(`this ability does not target ${ac}`)
+    const options = this.getAllByCriteria(ac.player, ac.ability.target.criteria)
+    if (options.length === 0) throw new Error(`this ability has no valid targets ${ac}`)
+    return options
   }
 }
 
@@ -322,7 +332,7 @@ type Ability = {
 
 type TargetType = {type: "Single Card", criteria: CardCriteria[]}
   | {type: "Multi Card", comparison: Comparison, criteria: CardCriteria[]}
-  | {type: "A and B", criteriaA: CardCriteria[], criteriaB: CardCriteria[]}
+  // | {type: "A and B", criteriaA: CardCriteria[], criteriaB: CardCriteria[]}
 
 type AbilityContext = {player: number, card: Card, ability: Ability}
 
@@ -341,6 +351,13 @@ const d = new CardDefinition(
       reactor: false,
       conditions: [{type: "In zone", zone: "Hand"}],
       effects: [{type: "Summon"}]
+    }, {
+      trigger: {type: "Activated"},
+      mandatory: false,
+      reactor: false,
+      conditions: [{type: "In zone", zone: "Field"}],
+      target: {type: "Single Card", criteria: [{type: "In Zone", zone: "Field"}]},
+      effects: []
     }
   ]
 )
@@ -355,3 +372,6 @@ const ac = game.getAllActivatableAbilities(0)[0]!
 game.startActivation(ac)
 console.log(`${game.cardsInZone(0, "Field").length} on field`)
 console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
+const onfield = game.cardsInZone(0, "Field")[0]!
+game.startActivation({player: 0, card: onfield, ability: onfield.abilities[1]!})
+console.log(`waiting on: ${game.waitingOn.type}`)
