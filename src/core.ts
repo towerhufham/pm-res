@@ -6,7 +6,8 @@ type LogEntry = { type: "Effects", effectAtom: EffectAtom[] }
   | { type: "End Turn" }
 
 class GameState {
-  players: BoardState[]
+  players: Decklist[]
+  cards: Card[]
   log: LogEntry[]
   round: number
   turnPlayer: number
@@ -14,80 +15,54 @@ class GameState {
   nextId: number
 
   constructor(decklists: Decklist[]) {
-    this.players = []
+    this.players = decklists
+    this.cards = []
     this.log = [] //todo setup in logs
     this.round = 1
     this.turnPlayer = 0
     this.priorityPlayer = 0
     this.nextId = 0
-    this.setup(decklists)
+    this.setup()
   }
 
-  setup(decklists: Decklist[]) {
-    for (const [playerIndex, decklist] of decklists.entries()) {
+  setup() {
+    for (const [playerIndex, decklist] of this.players.entries()) {
       for (const world of decklist.worlds) {
         const card = this.spawnCard(playerIndex, world)
-        this.moveCardToZone(card, "World")
+        this.moveCard(card, "World")
       }
       for (const ex of decklist.ex) {
         const card = this.spawnCard(playerIndex, ex)
-        this.moveCardToZone(card, "EX")
+        this.moveCard(card, "EX")
       }
       for (const main of decklist.main) {
         const card = this.spawnCard(playerIndex, main)
-        this.moveCardToZone(card, "Deck")
+        this.moveCard(card, "Deck")
       }
       //todo server rng
-      this.shuffleDeck(playerIndex)
+      // this.shuffleDeck(playerIndex)
     }
   }
 
-  shuffleDeck(player: number): void {
-    this.players[player]!.deck = shuffle(this.players[player]!.deck)
-  }
-
-  // findCard(id: number): Zone | null {
-  //   const zones: Zone[] = [...ALL_ZONES]
-  //   for (const z of zones) {
-  //     const cards = this.cardsInZone(z)
-  //     if (cards.some(c => c.id === id)) return z
-  //   }
-  //   return null
+  // shuffleDeck(player: number): void {
+  //   this.players[player]!.deck = shuffle(this.players[player]!.deck)
   // }
+
+  moveCard(card: Card, to: Zone): void {
+    //todo maybe guard ex as well
+    // if (to === "Deck") throw new Error("can't use moveCard to move to deck!")
+    card.zone = to
+  }
 
   spawnCard(player: number, definition: CardDefinition): Card {
     const card = new Card(this.nextId, definition, player)
+    this.cards.push(card)
     this.nextId++
     return card
   }
 
-  moveCardToZone(card: Card, zone: Zone): void {
-    const oldZone = this.findCard(card.id)
-    if (oldZone === "Deck")
-      this.deck = this.deck.filter(c => c.id !== card.id)
-    else if (oldZone === "EX")
-      this.ex = this.ex.filter(c => c.id !== card.id)
-    else if (oldZone === "Hand")
-      this.hand = this.hand.filter(c => c.id !== card.id)
-    else if (oldZone === "Field")
-      this.field = this.field.filter(c => c.id !== card.id)
-    else if (oldZone === "GY")
-      this.gy = this.gy.filter(c => c.id !== card.id)
-    else if (oldZone === "Suspense")
-      this.suspense = this.suspense.filter(c => c.id !== card.id)
-    else if (oldZone === "Deletion")
-      this.deletion = this.deletion.filter(c => c.id !== card.id)
-    else if (oldZone === "World")
-      this.worldZone = this.worldZone.filter(c => c.id !== card.id)
-    if (zone === "Deck") this.deck.push(card)
-    else if (zone === "EX") this.ex.push(card)
-    else if (zone === "Hand") this.hand.push(card)
-    else if (zone === "Field") this.field.push(card)
-    else if (zone === "GY") this.gy.push(card)
-    else if (zone === "Suspense") this.suspense.push(card)
-    else if (zone === "Deletion") this.deletion.push(card)
-    else if (zone === "World") this.worldZone.push(card)
-    else throw new Error(`trying to move "${card.name}" to unknown zone ${zone}`)
+  cardsInZone(player: number, zone: Zone): Card[] {
+    return this.cards.filter(c => c.ownedBy === player && c.zone === zone)
   }
 
   private buildEffectAtoms(card: Card, ability: Ability, player: number): EffectAtom[] {
@@ -146,43 +121,6 @@ class Decklist {
 const ALL_ZONES = ["Deck", "EX", "Hand", "Field", "GY", "Suspense", "Deletion", "World"] as const
 type Zone = typeof ALL_ZONES[number]
 
-class BoardState {
-  gameState: GameState
-  deck: Card[] //todo handle hidden nature; also card theft
-  ex: Card[]
-  hand: Card[]
-  field: Card[]
-  gy: Card[]
-  suspense: Card[]
-  deletion: Card[]
-  worldZone: Card[]
-
-  constructor(gs: GameState) {
-    this.gameState = gs
-    this.deck = []
-    this.ex = []
-    this.hand = []
-    this.field = []
-    this.gy = []
-    this.suspense = []
-    this.deletion = []
-    this.worldZone = []
-  }
-
-  cardsInZone(zone: Zone): Card[] {
-    switch (zone) {
-      case "Deck": return this.deck
-      case "EX": return this.ex
-      case "Hand": return this.hand
-      case "Field": return this.field
-      case "GY": return this.gy
-      case "Suspense": return this.suspense
-      case "Deletion": return this.deletion
-      case "World": return this.worldZone
-    }
-  }
-}
-
 type Color = "Red" | "Orange" | "Yellow" | "Green" | "Teal" | "Blue" | "Purple"
 
 type CardType = "World" | "Esper" | "Core" | "Vision"
@@ -213,6 +151,7 @@ class Card {
   ex: boolean
   ownedBy: number
   controlledBy: number
+  zone: Zone
 
   constructor(id: number, definition: CardDefinition, ownedBy: number) {
     this.id = id
@@ -223,6 +162,14 @@ class Card {
     this.ex = definition.ex
     this.ownedBy = ownedBy
     this.controlledBy = ownedBy
+    //todo this logic is duplicated and easily extractible
+    if (definition.cardType === "World") {
+      this.zone = "World"
+    } else if (definition.ex) {
+      this.zone = "EX"
+    } else {
+      this.zone = "Deck"
+    }
   }
 }
 
@@ -275,7 +222,6 @@ const d = new CardDefinition(
 )
 const list = new Decklist(Array(50).fill(d))
 const game = new GameState([list])
-const player = game.players[0]!
-console.log(`${player.hand.length} in hand, ${player.deck.length} in deck`)
-player.moveCardToZone(player.deck[0]!, "Hand")
-console.log(`${player.hand.length} in hand, ${player.deck.length} in deck`)
+console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
+game.moveCard(game.cards[0]!, "Hand")
+console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
