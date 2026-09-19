@@ -168,7 +168,9 @@ class GameState {
         if (!this.checkCondition(ac.player, ac.card, cond)) return false
       }
     }
-    //todo valid targets
+    if (ac.ability.target) {
+      if (this.getValidTargets(ac).length === 0) return false
+    }
     return true
   }
 
@@ -337,7 +339,7 @@ type Ability = {
 }
 
 type TargetType = {type: "Single Card", criteria: CardCriteria[]}
-  | {type: "Multi Card", comparison: Comparison, criteria: CardCriteria[]}
+  // | {type: "Multi Card", comparison: Comparison, criteria: CardCriteria[]}
   // | {type: "A and B", criteriaA: CardCriteria[], criteriaB: CardCriteria[]}
 
 type AbilityContext = {player: number, card: Card, ability: Ability}
