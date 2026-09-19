@@ -13,7 +13,7 @@ type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
 //todo server rng response, mulligans, betting, arbitrary choices
 type WaitingOn = {type: "Setting up..."}
   | {type: "Main", player: number, options: AbilityContext[]}
-  | {type: "Targeting", ac: AbilityContext, options: Card[]}
+  | {type: "Targeting", ac: AbilityContext, targetingGroups: TargetingGroup[], validTargetLists: Card[][]}
   | {type: "Optional trigger", ac: AbilityContext}
   | {type: "Trigger ordering", acs: AbilityContext[]}
 
@@ -88,17 +88,23 @@ class GameState {
   cardsInZone(player: number, zone: Zone): Card[] {
     return this.cards.filter(c => c.ownedBy === player && c.zone === zone)
   }
-  
-  private buildEffectAtoms(ac: AbilityContext): EffectAtom[] {
+
+  private buildEffectAtoms(ac: AbilityContext, finalTargets: FinalizedTargets): EffectAtom[] {
     //todo targets
     const atoms: EffectAtom[] = []
     for (const eff of ac.ability.effects) {
-      if (eff.type === "Summon") {
-        atoms.push({ type: "Move", ac, card: ac.card, moveName: "Summoned", to: "Field" })
-      } else if (eff.type === "Send to") {
-        atoms.push({ type: "Move", ac, card: ac.card, to: eff.to })
-      } else if (eff.type === "Sacrifice") {
-        atoms.push({ type: "Move", ac, card: ac.card, moveName: "Sacrificed", to: "GY" })
+      if (eff.type === "Summon this") {
+        atoms.push({type: "Move", ac, card: ac.card, moveName: "Summoned", to: "Field"})
+      } else if (eff.type === "Send this to") {
+        atoms.push({type: "Move", ac, card: ac.card, to: eff.to})
+      } else if (eff.type === "Sacrifice this") {
+        atoms.push({type: "Move", ac, card: ac.card, moveName: "Sacrificed", to: "GY"})
+      } else if (eff.type === "Send targets to") {
+        const targets = finalTargets[eff.tag]
+        if (!targets) throw new Error(`no targets for tag "${eff.tag}"`)
+        for (const target of targets) {
+          atoms.push({type: "Move", ac, card: target, to: eff.to})
+        }
       } else {
         throw new Error(`unknown effect type in eff ${eff}`)
       }
@@ -167,8 +173,10 @@ class GameState {
         if (!this.checkCondition(ac.player, ac.card, cond)) return false
       }
     }
-    if (ac.ability.targetType) {
-      if (this.getValidTargets(ac).length === 0) return false
+    if (ac.ability.targetingGroups.length > 0) {
+      for (const group of ac.ability.targetingGroups) {
+        if (this.getAllByCriteria(ac.player, group.criteria).length === 0) return false
+      }
     }
     return true
   }
@@ -188,42 +196,29 @@ class GameState {
     if (!this.canActivateAbility(ac)) {
       throw new Error(`trying to activate non-activatable ability ${ac}`)
     }
-    if (!ac.ability.targetType) {
-      //todo this should be extracted for safety/DRY reasons
-      const atoms = this.buildEffectAtoms(ac)
-      this.applyEffectAtoms(atoms)
+    const targetingGroups = ac.ability.targetingGroups
+    if (targetingGroups.length === 0) {
+      this.applyEffect(ac, {})
     } else {
-      this.waitingOn = {type: "Targeting", ac, options: this.getValidTargets(ac)}
-    }
-  }
-
-  getValidTargets(ac: AbilityContext): Card[] {
-    if (!ac.ability.targetType) throw new Error(`this ability does not target ${ac}`)
-    const options = this.getAllByCriteria(ac.player, ac.ability.targetType.criteria)
-    if (options.length === 0) throw new Error(`this ability has no valid targets ${ac}`)
-    return options
-  }
-
-  areTargetsApplicable(targets: TargetPayload, ac: AbilityContext): boolean {
-    //todo rejection messages (probably)
-    if (!ac.ability.targetType) return false
-    if (targets.type !== ac.ability.targetType.type) return false
-    if (targets.type === "Single Card") {
-      return this.checkCriteria(ac.player, targets.target, ac.ability.targetType.criteria)
-    } else if (targets.type === "Multi Card") {
-      for (const target of targets.targets) {
-        if (!this.checkCriteria(ac.player, target, ac.ability.targetType.criteria)) return false
+      const validTargetLists = []
+      for (const group of targetingGroups) {
+        validTargetLists.push(this.getAllByCriteria(ac.player, group.criteria))
       }
-    } else {
-      throw new Error(`unknown target type ${targets}`)
+      this.waitingOn = {type: "Targeting", ac, targetingGroups, validTargetLists}
     }
-    return true
   }
 
-  supplyTargets(targets: TargetPayload): void {
-    if (this.waitingOn.type !== "Targeting") throw new Error(`supplying targets while waiting on ${this.waitingOn}`)
-    if (!this.areTargetsApplicable(targets, this.waitingOn.ac))
-    //?
+  supplyTargets(targets: FinalizedTargets): void {
+    if (this.waitingOn.type !== "Targeting") throw new Error(`supplying targets while not waiting for them ${this.waitingOn}`)
+    // if (!this.areTargetsApplicable(targets, this.waitingOn.ac))
+    this.applyEffect(this.waitingOn.ac, targets)
+  }
+
+  applyEffect(ac: AbilityContext, targets: FinalizedTargets): void {
+    const atoms = this.buildEffectAtoms(ac, targets)
+    this.applyEffectAtoms(atoms)
+    //todo won't always be ac's player!
+    this.waitingOn = {type: "Main", player: ac.player, options: this.getAllActivatableAbilities(ac.player)}
   }
 }
 
@@ -316,15 +311,24 @@ class Card {
 
 type MoveName = "Summoned" | "Destroyed" | "Sacrificed" | "Excavated"
 
-type Effect = { type: "Summon" } | { type: "Send to", to: Zone } | { type: "Sacrifice" }
+type Effect = {type: "Summon this"} 
+  | {type: "Send this to", to: Zone}
+  | {type: "Sacrifice this"}
+  | {type: "Send targets to", to: Zone, tag: string}
 
-type EffectAtom = { ac: AbilityContext, type: "Move", moveName?: MoveName, card: Card, to: Zone } //todo should from be here?
+type TargetingGroup = {type: "Single Target", criteria: CardCriteria[], tag: string}
+  | {type: "Multi Target", criteria: CardCriteria[], tag: string}
 
-type Trigger = { type: "Activated" } | { type: "This moves", from?: Zone, to?: Zone }
+type FinalizedTargets = Record<string, Card[]>
 
-type Comparison = { type: "At least", n: number }
-  | { type: "At most", n: number }
-  | { type: "Equal to", n: number }
+type EffectAtom = {ac: AbilityContext, type: "Move", moveName?: MoveName, card: Card, to: Zone} //todo should from be here?
+  | {ac: AbilityContext, type: "Target", card: Card, tag: string}
+
+type Trigger = {type: "Activated"} | {type: "This moves", from?: Zone, to?: Zone}
+
+type Comparison = {type: "At least", n: number}
+  | {type: "At most", n: number}
+  | {type: "Equal to", n: number}
 
 const checkComparison = (value: number, comp: Comparison): boolean => {
   if (comp.type === "At least") {
@@ -354,17 +358,13 @@ type Ability = {
   mandatory: boolean
   reactor: boolean
   conditions?: Condition[]
-  targetType?: TargetType
+  targetingGroups: TargetingGroup[]
   effects: Effect[]
   //todo hopt
 }
 
-type TargetType = {type: "Single Card", criteria: CardCriteria[]}
-  | {type: "Multi Card", comparison: Comparison, criteria: CardCriteria[]}
-  // | {type: "A and B", criteriaA: CardCriteria[], criteriaB: CardCriteria[]}
-
-type TargetPayload = {type: "Single Card", target: Card}
-  | {type: "Multi Card", targets: Card[]}
+// type TargetPayload = {type: "Single Card", target: Card}
+//   | {type: "Multi Card", targets: Card[]}
 
 type AbilityContext = {player: number, card: Card, ability: Ability}
 
@@ -382,14 +382,15 @@ const d = new CardDefinition(
       mandatory: false,
       reactor: false,
       conditions: [{type: "In zone", zone: "Hand"}],
-      effects: [{type: "Summon"}]
+      targetingGroups: [],
+      effects: [{type: "Summon this"}]
     }, {
       trigger: {type: "Activated"},
       mandatory: false,
       reactor: false,
       conditions: [{type: "In zone", zone: "Field"}],
-      targetType: {type: "Single Card", criteria: [{type: "In Zone", zone: "Field"}]},
-      effects: []
+      targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: ""}],
+      effects: [{type: "Send targets to", to: "GY", tag: ""}]
     }
   ]
 )
@@ -406,4 +407,7 @@ console.log(`${game.cardsInZone(0, "Field").length} on field`)
 console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
 const onfield = game.cardsInZone(0, "Field")[0]!
 game.startActivation({player: 0, card: onfield, ability: onfield.abilities[1]!})
+console.log(`waiting on: ${game.waitingOn.type}`)
+game.supplyTargets({"": [onfield]})
+console.log(`${game.cardsInZone(0, "Field").length} on field`)
 console.log(`waiting on: ${game.waitingOn.type}`)
