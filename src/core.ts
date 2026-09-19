@@ -25,7 +25,7 @@ class GameState {
     this.setup()
   }
 
-  setup() {
+  setup(): void {
     for (const [playerIndex, decklist] of this.players.entries()) {
       for (const world of decklist.worlds) {
         const card = this.spawnCard(playerIndex, world)
@@ -92,14 +92,66 @@ class GameState {
     return atoms
   }
 
-  private applyEffectAtoms(atoms: EffectAtom[]) {
+  private applyEffectAtoms(atoms: EffectAtom[]): void {
+    //todo check triggers
     for (const atom of atoms) {
       if (atom.type === "Move") {
-        //todo need to know whose board we're in!!!
+        this.moveCard(atom.card, atom.to)
       } else {
         throw new Error(`unknown effect atom type ${atom}`)
       }
     }
+  }
+
+  checkCriteria(asPlayer: number, card: Card, criteria: CardCriteria | CardCriteria[]): boolean {
+    if (Array.isArray(criteria)) return criteria.every(c => this.checkCriteria(asPlayer, card, c))
+    if (criteria.type === "Any of") {
+      for (const sub of criteria.subcriteria) {
+        if (!this.checkCriteria(asPlayer, card, sub)) return false
+      }
+      return true
+    } else if (criteria.type === "None of") {
+      for (const sub of criteria.subcriteria) {
+        if (this.checkCriteria(asPlayer, card, sub)) return false
+      }
+      return true
+    } else if (criteria.type === "In Zone") {
+      return card.zone === criteria.zone
+    } else if (criteria.type === "Name includes") {
+      return card.name.includes(criteria.substring)
+    } else if (criteria.type === "Colors are exactly") {
+      return card.colors.every((color, i) => color === criteria.colors[i])
+    } else if (criteria.type === "Colors within") {
+      return card.colors.every(color => criteria.colors.includes(color))
+    } else if (criteria.type === "Controlled by") {
+      return card.controlledBy === asPlayer
+    } else {
+      throw new Error(`unknown criteria ${criteria}`)
+    }
+  }
+
+  getAllByCriteria(asPlayer: number, criteria: CardCriteria[]): Card[] {
+    return this.cards.filter(c => this.checkCriteria(asPlayer, c, criteria))
+  }
+
+  checkCondition(asPlayer: number, cond: Condition): boolean {
+    if (cond.type === "Count cards") {
+      const count = this.getAllByCriteria(asPlayer, cond.criteria).length
+      return checkComparison(count, cond.comparison)
+    } else {
+      throw new Error(`unknown condition ${cond}`)
+    }
+  }
+
+  canActivateAbility(player: number, card: Card, ability: Ability): boolean {
+    //todo hopt
+    if (ability.conditions) {
+      for (const cond of ability.conditions) {
+        if (!this.checkCondition(player, cond)) return false
+      }
+    }
+    //todo valid targets
+    return true
   }
 }
 
@@ -202,7 +254,19 @@ type Comparison = { type: "At least", n: number }
   | { type: "At most", n: number }
   | { type: "Equal to", n: number }
 
-type Condition = { type: "Number in zone", zone: Zone, comparison: Comparison, criteria: CardCriteria[] }
+const checkComparison = (value: number, comp: Comparison): boolean => {
+  if (comp.type === "At least") {
+    return value >= comp.n
+  } else if (comp.type === "At most") {
+    return value <= comp.n
+  } else if (comp.type === "Equal to") {
+    return value === comp.n
+  } else {
+    throw new Error(`unknown comparison ${comp}`)
+  }
+}
+
+type Condition = { type: "Count cards", comparison: Comparison, criteria: CardCriteria[] }
 
 type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
   | { type: "None of", subcriteria: CardCriteria[] }
@@ -210,6 +274,7 @@ type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
   | { type: "Colors are exactly", colors: Color[] }
   | { type: "Colors within", colors: Color[] }
   | { type: "In Zone", zone: Zone }
+  | { type: "Controlled by", who: "Us" | "Opponent"}
 
 type Ability = {
   trigger: Trigger
