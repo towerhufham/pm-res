@@ -1,17 +1,15 @@
 import { shuffle } from "./util"
 
-type LogEntry = { type: "Effects", effectAtom: EffectAtom[] }
-  | { type: "Activation", card: Card, ability: Ability }
-  | { type: "Trigger", card: Card, ability: Ability }
-  | { type: "End Turn" }
-
-//todo maybe [Card, Ability] should be a standardized type, or maybe it's self-explanatory
+type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
+  | {type: "Activation", ac: AbilityContext}
+  | {type: "Trigger", ac: AbilityContext}
+  | {type: "End Turn"}
 
 //todo server rng response, mulligans, betting, arbitrary choices
-type WaitingOn = {type: "Main", player: number}
-  | {type: "Targets", player: number, card: Card, ability: Ability}
-  | {type: "Optional trigger", player: number, card: Card, ability: Ability}
-  | {type: "Trigger order", player: number, cardsAndAbilities: [Card, Ability][]}
+type WaitingOn = {type: "Main", player: number} //todo maybe possible acs in here
+  | {type: "Targets", ac: AbilityContext}
+  | {type: "Optional trigger", ac: AbilityContext}
+  | {type: "Trigger order", acs: AbilityContext[]}
 
 class GameState {
   players: Decklist[]
@@ -84,17 +82,16 @@ class GameState {
   }
 
   //todo these arguments are in wrong order lol
-  private buildEffectAtoms(card: Card, ability: Ability, player: number): EffectAtom[] {
+  private buildEffectAtoms(ac: AbilityContext): EffectAtom[] {
     //todo targets
     const atoms: EffectAtom[] = []
-    const meta: EffectAtomMeta = { source: card, ability, player }
-    for (const eff of ability.effects) {
+    for (const eff of ac.ability.effects) {
       if (eff.type === "Summon") {
-        atoms.push({ type: "Move", meta, card, moveName: "Summoned", to: "Field" })
+        atoms.push({ type: "Move", ac, card: ac.card, moveName: "Summoned", to: "Field" })
       } else if (eff.type === "Send to") {
-        atoms.push({ type: "Move", meta, card, to: eff.to })
+        atoms.push({ type: "Move", ac, card: ac.card, to: eff.to })
       } else if (eff.type === "Sacrifice") {
-        atoms.push({ type: "Move", meta, card, moveName: "Sacrificed", to: "GY" })
+        atoms.push({ type: "Move", ac, card: ac.card, moveName: "Sacrificed", to: "GY" })
       } else {
         throw new Error(`unknown effect type in eff ${eff}`)
       }
@@ -155,38 +152,39 @@ class GameState {
     }
   }
 
-  canActivateAbility(player: number, card: Card, ability: Ability): boolean {
-    if (ability.trigger.type !== "Activated") return false
+  canActivateAbility(ac: AbilityContext): boolean {
+    if (ac.ability.trigger.type !== "Activated") return false
     //todo hopt
-    if (ability.conditions) {
-      for (const cond of ability.conditions) {
-        if (!this.checkCondition(player, card, cond)) return false
+    if (ac.ability.conditions) {
+      for (const cond of ac.ability.conditions) {
+        if (!this.checkCondition(ac.player, ac.card, cond)) return false
       }
     }
     //todo valid targets
     return true
   }
 
-  getAllActivatableAbilities(player: number): [Card, Ability][] {
-    const found: [Card, Ability][] = []
+  getAllActivatableAbilities(player: number): AbilityContext[] {
+    const found: AbilityContext[] = []
     for (const card of this.cards) {
       for (const ability of card.abilities) {
-        if (this.canActivateAbility(player, card, ability)) found.push([card, ability])
+        const ac = {player, card, ability}
+        if (this.canActivateAbility(ac)) found.push(ac)
       }
     }
     return found
   }
 
-  startActivation(player: number, card: Card, ability: Ability): void {
-    if (!this.canActivateAbility(player, card, ability)) {
-      throw new Error(`trying to activate ability ${ability}`)
+  startActivation(ac: AbilityContext): void {
+    if (!this.canActivateAbility(ac)) {
+      throw new Error(`trying to activate ability ${ac.ability}`)
     }
-    if (!ability.target) {
+    if (!ac.ability.target) {
       //todo this should be extracted for safety/DRY reasons
-      const atoms = this.buildEffectAtoms(card, ability, player)
+      const atoms = this.buildEffectAtoms(ac)
       this.applyEffectAtoms(atoms)
     } else {
-      this.waitingOn = {type: "Targets", player, card, ability}
+      this.waitingOn = {type: "Targets", ac}
     }
   }
 }
@@ -276,17 +274,12 @@ class Card {
 
 // --------------- effs --------------- //
 
-type EffectAtomMeta = {
-  source?: Card
-  ability?: Ability
-  player: number
-}
 
 type MoveName = "Summoned" | "Destroyed" | "Sacrificed" | "Excavated"
 
 type Effect = { type: "Summon" } | { type: "Send to", to: Zone } | { type: "Sacrifice" }
 
-type EffectAtom = { meta: EffectAtomMeta, type: "Move", moveName?: MoveName, card: Card, to: Zone } //todo should from be here?
+type EffectAtom = { ac: AbilityContext, type: "Move", moveName?: MoveName, card: Card, to: Zone } //todo should from be here?
 
 type Trigger = { type: "Activated" } | { type: "This moves", from?: Zone, to?: Zone }
 
@@ -331,6 +324,8 @@ type TargetType = {type: "Single Card", criteria: CardCriteria[]}
   | {type: "Multi Card", comparison: Comparison, criteria: CardCriteria[]}
   | {type: "A and B", criteriaA: CardCriteria[], criteriaB: CardCriteria[]}
 
+type AbilityContext = {player: number, card: Card, ability: Ability}
+
 // --------------- test --------------- //
 
 const d = new CardDefinition(
@@ -356,7 +351,7 @@ console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`
 game.draw(0)
 console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
 console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
-const cardAndAbility = game.getAllActivatableAbilities(0)[0]!
-game.startActivation(0, cardAndAbility[0], cardAndAbility[1])
+const ac = game.getAllActivatableAbilities(0)[0]!
+game.startActivation(ac)
 console.log(`${game.cardsInZone(0, "Field").length} on field`)
 console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
