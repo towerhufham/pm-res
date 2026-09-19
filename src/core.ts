@@ -134,10 +134,12 @@ class GameState {
     return this.cards.filter(c => this.checkCriteria(asPlayer, c, criteria))
   }
 
-  checkCondition(asPlayer: number, cond: Condition): boolean {
+  checkCondition(asPlayer: number, card: Card, cond: Condition): boolean {
     if (cond.type === "Count cards") {
       const count = this.getAllByCriteria(asPlayer, cond.criteria).length
       return checkComparison(count, cond.comparison)
+    } else if (cond.type === "In zone") {
+      return card.zone === cond.zone
     } else {
       throw new Error(`unknown condition ${cond}`)
     }
@@ -147,7 +149,7 @@ class GameState {
     //todo hopt
     if (ability.conditions) {
       for (const cond of ability.conditions) {
-        if (!this.checkCondition(player, cond)) return false
+        if (!this.checkCondition(player, card, cond)) return false
       }
     }
     //todo valid targets
@@ -267,6 +269,7 @@ const checkComparison = (value: number, comp: Comparison): boolean => {
 }
 
 type Condition = { type: "Count cards", comparison: Comparison, criteria: CardCriteria[] }
+  | {type: "In zone", zone: Zone}
 
 type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
   | { type: "None of", subcriteria: CardCriteria[] }
