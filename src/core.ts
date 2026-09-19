@@ -1,9 +1,9 @@
 import { shuffle } from "./util"
 
-type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
-  | {type: "Activation", card: Card, ability: Ability}
-  | {type: "Trigger", card: Card, ability: Ability}
-  | {type: "End Turn"}
+type LogEntry = { type: "Effects", effectAtom: EffectAtom[] }
+  | { type: "Activation", card: Card, ability: Ability }
+  | { type: "Trigger", card: Card, ability: Ability }
+  | { type: "End Turn" }
 
 class GameState {
   players: BoardState[]
@@ -11,30 +11,96 @@ class GameState {
   round: number
   turnPlayer: number
   priorityPlayer: number
+  nextId: number
 
   constructor(decklists: Decklist[]) {
-    const boards = []
-    for (const deck of decklists) {
-      boards.push(new BoardState(this, deck))
-    }
-    this.players = boards
+    this.players = []
     this.log = [] //todo setup in logs
     this.round = 1
     this.turnPlayer = 0
     this.priorityPlayer = 0
+    this.nextId = 0
+    this.setup(decklists)
+  }
+
+  setup(decklists: Decklist[]) {
+    for (const [playerIndex, decklist] of decklists.entries()) {
+      for (const world of decklist.worlds) {
+        const card = this.spawnCard(playerIndex, world)
+        this.moveCardToZone(card, "World")
+      }
+      for (const ex of decklist.ex) {
+        const card = this.spawnCard(playerIndex, ex)
+        this.moveCardToZone(card, "EX")
+      }
+      for (const main of decklist.main) {
+        const card = this.spawnCard(playerIndex, main)
+        this.moveCardToZone(card, "Deck")
+      }
+      //todo server rng
+      this.shuffleDeck(playerIndex)
+    }
+  }
+
+  shuffleDeck(player: number): void {
+    this.players[player]!.deck = shuffle(this.players[player]!.deck)
+  }
+
+  // findCard(id: number): Zone | null {
+  //   const zones: Zone[] = [...ALL_ZONES]
+  //   for (const z of zones) {
+  //     const cards = this.cardsInZone(z)
+  //     if (cards.some(c => c.id === id)) return z
+  //   }
+  //   return null
+  // }
+
+  spawnCard(player: number, definition: CardDefinition): Card {
+    const card = new Card(this.nextId, definition, player)
+    this.nextId++
+    return card
+  }
+
+  moveCardToZone(card: Card, zone: Zone): void {
+    const oldZone = this.findCard(card.id)
+    if (oldZone === "Deck")
+      this.deck = this.deck.filter(c => c.id !== card.id)
+    else if (oldZone === "EX")
+      this.ex = this.ex.filter(c => c.id !== card.id)
+    else if (oldZone === "Hand")
+      this.hand = this.hand.filter(c => c.id !== card.id)
+    else if (oldZone === "Field")
+      this.field = this.field.filter(c => c.id !== card.id)
+    else if (oldZone === "GY")
+      this.gy = this.gy.filter(c => c.id !== card.id)
+    else if (oldZone === "Suspense")
+      this.suspense = this.suspense.filter(c => c.id !== card.id)
+    else if (oldZone === "Deletion")
+      this.deletion = this.deletion.filter(c => c.id !== card.id)
+    else if (oldZone === "World")
+      this.worldZone = this.worldZone.filter(c => c.id !== card.id)
+    if (zone === "Deck") this.deck.push(card)
+    else if (zone === "EX") this.ex.push(card)
+    else if (zone === "Hand") this.hand.push(card)
+    else if (zone === "Field") this.field.push(card)
+    else if (zone === "GY") this.gy.push(card)
+    else if (zone === "Suspense") this.suspense.push(card)
+    else if (zone === "Deletion") this.deletion.push(card)
+    else if (zone === "World") this.worldZone.push(card)
+    else throw new Error(`trying to move "${card.name}" to unknown zone ${zone}`)
   }
 
   private buildEffectAtoms(card: Card, ability: Ability, player: number): EffectAtom[] {
     //todo targets
     const atoms: EffectAtom[] = []
-    const meta: EffectAtomMeta = {source: card, ability, player}
+    const meta: EffectAtomMeta = { source: card, ability, player }
     for (const eff of ability.effects) {
       if (eff.type === "Summon") {
-        atoms.push({type: "Move", meta, card, moveName: "Summoned", to: "Field"})
+        atoms.push({ type: "Move", meta, card, moveName: "Summoned", to: "Field" })
       } else if (eff.type === "Send to") {
-        atoms.push({type: "Move", meta, card, to: eff.to})
+        atoms.push({ type: "Move", meta, card, to: eff.to })
       } else if (eff.type === "Sacrifice") {
-        atoms.push({type: "Move", meta, card, moveName: "Sacrificed", to: "GY"})
+        atoms.push({ type: "Move", meta, card, moveName: "Sacrificed", to: "GY" })
       } else {
         throw new Error(`unknown effect type in eff ${eff}`)
       }
@@ -90,9 +156,8 @@ class BoardState {
   suspense: Card[]
   deletion: Card[]
   worldZone: Card[]
-  nextId: number // todo think about server implications
 
-  constructor(gs: GameState, decklist: Decklist) {
+  constructor(gs: GameState) {
     this.gameState = gs
     this.deck = []
     this.ex = []
@@ -102,25 +167,6 @@ class BoardState {
     this.suspense = []
     this.deletion = []
     this.worldZone = []
-    this.nextId = 0
-    this.setup(decklist)
-  }
-
-  setup(decklist: Decklist) {
-    for (const world of decklist.worlds) {
-      const card = this.spawnCard(world)
-      this.moveCardToZone(card, "World")
-    }
-    for (const ex of decklist.ex) {
-      const card = this.spawnCard(ex)
-      this.moveCardToZone(card, "EX")
-    }
-    for (const main of decklist.main) {
-      const card = this.spawnCard(main)
-      this.moveCardToZone(card, "Deck")
-    }
-    //todo server rng
-    this.deck = shuffle(this.deck)
   }
 
   cardsInZone(zone: Zone): Card[] {
@@ -134,50 +180,6 @@ class BoardState {
       case "Deletion": return this.deletion
       case "World": return this.worldZone
     }
-  }
-
-  findCard(id: number): Zone | null {
-    const zones: Zone[] = [...ALL_ZONES]
-    for (const z of zones) {
-      const cards = this.cardsInZone(z)
-      if (cards.some(c => c.id === id)) return z
-    }
-    return null
-  }
-
-  spawnCard(definition: CardDefinition): Card {
-    const card = new Card(this.nextId, this, definition)
-    this.nextId++
-    return card
-  }
-
-  moveCardToZone(card: Card, zone: Zone): void {
-    const oldZone = this.findCard(card.id)
-    if (oldZone === "Deck") 
-      this.deck = this.deck.filter(c => c.id !== card.id)
-    else if (oldZone === "EX") 
-      this.ex = this.ex.filter(c => c.id !== card.id)
-    else if (oldZone === "Hand") 
-      this.hand = this.hand.filter(c => c.id !== card.id)
-    else if (oldZone === "Field") 
-      this.field = this.field.filter(c => c.id !== card.id)
-    else if (oldZone === "GY") 
-      this.gy = this.gy.filter(c => c.id !== card.id)
-    else if (oldZone === "Suspense") 
-      this.suspense = this.suspense.filter(c => c.id !== card.id)
-    else if (oldZone === "Deletion") 
-      this.deletion = this.deletion.filter(c => c.id !== card.id)
-    else if (oldZone === "World") 
-      this.worldZone = this.worldZone.filter(c => c.id !== card.id)
-    if (zone === "Deck") this.deck.push(card)
-    else if (zone === "EX") this.ex.push(card)
-    else if (zone === "Hand") this.hand.push(card)
-    else if (zone === "Field") this.field.push(card)
-    else if (zone === "GY") this.gy.push(card)
-    else if (zone === "Suspense") this.suspense.push(card)
-    else if (zone === "Deletion") this.deletion.push(card)
-    else if (zone === "World") this.worldZone.push(card)
-    else throw new Error(`trying to move "${card.name}" to unknown zone ${zone}`)
   }
 }
 
@@ -204,26 +206,23 @@ class CardDefinition {
 
 class Card {
   id: number
-  board: BoardState
   definition: CardDefinition
   name: string
   colors: Color[] //todo set
   cardType: CardType
   ex: boolean
-  //todo: owner/controller
+  ownedBy: number
+  controlledBy: number
 
-  constructor(id: number, board: BoardState, definition: CardDefinition) {
+  constructor(id: number, definition: CardDefinition, ownedBy: number) {
     this.id = id
-    this.board = board
     this.definition = definition
     this.name = definition.name
     this.colors = definition.colors
     this.cardType = definition.cardType
     this.ex = definition.ex
-  }
-
-  move(to: Zone): void {
-    this.board.moveCardToZone(this, to)
+    this.ownedBy = ownedBy
+    this.controlledBy = ownedBy
   }
 }
 
@@ -237,24 +236,24 @@ type EffectAtomMeta = {
 
 type MoveName = "Summoned" | "Destroyed" | "Sacrificed" | "Excavated"
 
-type Effect = {type: "Summon"} | {type: "Send to", to: Zone} | {type: "Sacrifice"}
+type Effect = { type: "Summon" } | { type: "Send to", to: Zone } | { type: "Sacrifice" }
 
-type EffectAtom = {meta: EffectAtomMeta, type: "Move", moveName?: MoveName, card: Card, to: Zone} //todo should from be here?
+type EffectAtom = { meta: EffectAtomMeta, type: "Move", moveName?: MoveName, card: Card, to: Zone } //todo should from be here?
 
-type Trigger = {type: "Activated"} | {type: "This moves", from?: Zone, to?: Zone}
+type Trigger = { type: "Activated" } | { type: "This moves", from?: Zone, to?: Zone }
 
-type Comparison = {type: "At least", n: number}
-  | {type: "At most", n: number}
-  | {type: "Equal to", n: number}
+type Comparison = { type: "At least", n: number }
+  | { type: "At most", n: number }
+  | { type: "Equal to", n: number }
 
-type Condition = {type: "Number in zone", zone: Zone, comparison: Comparison, criteria: CardCriteria[]}
+type Condition = { type: "Number in zone", zone: Zone, comparison: Comparison, criteria: CardCriteria[] }
 
-type CardCriteria = {type: "Any of", subcriteria: CardCriteria[]}
-  | {type: "None of", subcriteria: CardCriteria[]}
-  | {type: "Name includes", substring: string}
-  | {type: "Colors are exactly", colors: Color[]}
-  | {type: "Colors within", colors: Color[]}
-  | {type: "In Zone", zone: Zone}
+type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
+  | { type: "None of", subcriteria: CardCriteria[] }
+  | { type: "Name includes", substring: string }
+  | { type: "Colors are exactly", colors: Color[] }
+  | { type: "Colors within", colors: Color[] }
+  | { type: "In Zone", zone: Zone }
 
 type Ability = {
   trigger: Trigger
@@ -268,7 +267,7 @@ type Ability = {
 // --------------- test --------------- //
 
 const d = new CardDefinition(
-  "TEST-001", 
+  "TEST-001",
   "Pythagorean Angel",
   ["Yellow", "Teal"],
   "Esper",
