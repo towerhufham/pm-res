@@ -83,6 +83,7 @@ class GameState {
     return this.cards.filter(c => c.ownedBy === player && c.zone === zone)
   }
 
+  //todo these arguments are in wrong order lol
   private buildEffectAtoms(card: Card, ability: Ability, player: number): EffectAtom[] {
     //todo targets
     const atoms: EffectAtom[] = []
@@ -155,6 +156,7 @@ class GameState {
   }
 
   canActivateAbility(player: number, card: Card, ability: Ability): boolean {
+    if (ability.trigger.type !== "Activated") return false
     //todo hopt
     if (ability.conditions) {
       for (const cond of ability.conditions) {
@@ -173,6 +175,19 @@ class GameState {
       }
     }
     return found
+  }
+
+  startActivation(player: number, card: Card, ability: Ability): void {
+    if (!this.canActivateAbility(player, card, ability)) {
+      throw new Error(`trying to activate ability ${ability}`)
+    }
+    if (!ability.target) {
+      //todo this should be extracted for safety/DRY reasons
+      const atoms = this.buildEffectAtoms(card, ability, player)
+      this.applyEffectAtoms(atoms)
+    } else {
+      this.waitingOn = {type: "Targets", player, card, ability}
+    }
   }
 }
 
@@ -340,4 +355,8 @@ console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.ca
 console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
 game.draw(0)
 console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
+console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
+const cardAndAbility = game.getAllActivatableAbilities(0)[0]!
+game.startActivation(0, cardAndAbility[0], cardAndAbility[1])
+console.log(`${game.cardsInZone(0, "Field").length} on field`)
 console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
