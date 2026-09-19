@@ -1,5 +1,10 @@
 import { shuffle } from "./util"
 
+//current mysteries
+//how does the server manage rng and secrets?
+//how do we order the deck?
+//how do effects reference targets?
+
 type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
   | {type: "Activation", ac: AbilityContext}
   | {type: "Trigger", ac: AbilityContext}
@@ -326,8 +331,8 @@ type Ability = {
   mandatory: boolean
   reactor: boolean
   conditions?: Condition[]
-  effects: Effect[]
   target?: TargetType
+  effects: Effect[]
   //todo hopt
 }
 
