@@ -226,7 +226,8 @@ class Decklist {
 const ALL_ZONES = ["Deck", "EX", "Hand", "Field", "GY", "Suspense", "Deletion", "World"] as const
 type Zone = typeof ALL_ZONES[number]
 
-type Color = "Red" | "Orange" | "Yellow" | "Green" | "Teal" | "Blue" | "Purple"
+const ALL_COLORS = ["Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple"] as const
+type Color = typeof ALL_COLORS[number]
 
 type CardType = "World" | "Esper" | "Core" | "Vision"
 
