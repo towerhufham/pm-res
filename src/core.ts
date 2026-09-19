@@ -3,7 +3,24 @@ import { shuffle } from "./util"
 //current mysteries
 //how does the server manage rng and secrets?
 //how do we order the deck?
-//how do effects reference targets?
+
+class RulesError extends Error {
+  constructor(message: string, data?: unknown) {
+    let fullMessage = ""
+    if (data) {
+      try {
+        fullMessage = `[Rules Error: ${message}] ${JSON.stringify(data)}`
+      } catch (e: unknown) {
+        fullMessage = `[Rules Error: ${message}] (data couldn't be stringified)`
+      }
+    } else {
+      fullMessage = `[Rules Error ${message}]`
+    }
+    super(fullMessage)
+    this.name = "RulesError"
+    Object.setPrototypeOf(this, RulesError.prototype)
+  }
+}
 
 type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
   | {type: "Activation", ac: AbilityContext}
@@ -27,7 +44,7 @@ class GameState {
   nextId: number
 
   constructor(decklists: Decklist[]) {
-    if (decklists.length === 0) throw new Error(`can't make a game with no players!`)
+    if (decklists.length === 0) throw new RulesError(`can't make a game with no players!`)
     this.players = decklists
     this.cards = []
     this.log = [] //todo setup in logs
@@ -65,7 +82,7 @@ class GameState {
 
   moveCard(card: Card, to: Zone): void {
     //todo maybe guard ex as well
-    // if (to === "Deck") throw new Error("can't use moveCard to move to deck!")
+    // if (to === "Deck") throw new RulesError("can't use moveCard to move to deck!")
     card.zone = to
   }
 
@@ -101,12 +118,12 @@ class GameState {
         atoms.push({type: "Move", ac, card: ac.card, moveName: "Sacrificed", to: "GY"})
       } else if (eff.type === "Send targets to") {
         const targets = finalTargets[eff.tag]
-        if (!targets) throw new Error(`no targets for tag "${eff.tag}"`)
+        if (!targets) throw new RulesError("no targets for tag", eff.tag)
         for (const target of targets) {
           atoms.push({type: "Move", ac, card: target, to: eff.to})
         }
       } else {
-        throw new Error(`unknown effect type in eff ${eff}`)
+        throw new RulesError("unknown effect type in eff", eff)
       }
     }
     return atoms
@@ -118,7 +135,7 @@ class GameState {
       if (atom.type === "Move") {
         this.moveCard(atom.card, atom.to)
       } else {
-        throw new Error(`unknown effect atom type ${atom}`)
+        throw new RulesError("unknown effect atom type", atom)
       }
     }
   }
@@ -146,7 +163,7 @@ class GameState {
     } else if (criteria.type === "Controlled by") {
       return card.controlledBy === asPlayer
     } else {
-      throw new Error(`unknown criteria ${criteria}`)
+      throw new RulesError("unknown criteria", criteria)
     }
   }
 
@@ -161,7 +178,7 @@ class GameState {
     } else if (cond.type === "In zone") {
       return card.zone === cond.zone
     } else {
-      throw new Error(`unknown condition ${cond}`)
+      throw new RulesError("unknown condition", cond)
     }
   }
 
@@ -194,7 +211,7 @@ class GameState {
 
   startActivation(ac: AbilityContext): void {
     if (!this.canActivateAbility(ac)) {
-      throw new Error(`trying to activate non-activatable ability ${ac}`)
+      throw new RulesError("trying to activate non-activatable ability", ac)
     }
     const targetingGroups = ac.ability.targetingGroups
     if (targetingGroups.length === 0) {
@@ -209,7 +226,7 @@ class GameState {
   }
 
   supplyTargets(targets: FinalizedTargets): void {
-    if (this.waitingOn.type !== "Targeting") throw new Error(`supplying targets while not waiting for them ${this.waitingOn}`)
+    if (this.waitingOn.type !== "Targeting") throw new RulesError("supplying targets while not waiting for them", this.waitingOn)
     // if (!this.areTargetsApplicable(targets, this.waitingOn.ac))
     this.applyEffect(this.waitingOn.ac, targets)
   }
@@ -338,7 +355,7 @@ const checkComparison = (value: number, comp: Comparison): boolean => {
   } else if (comp.type === "Equal to") {
     return value === comp.n
   } else {
-    throw new Error(`unknown comparison ${comp}`)
+    throw new RulesError("unknown comparison", comp)
   }
 }
 
@@ -411,3 +428,4 @@ console.log(`waiting on: ${game.waitingOn.type}`)
 game.supplyTargets({"": [onfield]})
 console.log(`${game.cardsInZone(0, "Field").length} on field`)
 console.log(`waiting on: ${game.waitingOn.type}`)
+throw new RulesError("testing!", onfield)
