@@ -13,9 +13,9 @@ type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
 //todo server rng response, mulligans, betting, arbitrary choices
 type WaitingOn = {type: "Setting up..."}
   | {type: "Main", player: number, options: AbilityContext[]}
-  | {type: "Targets", ac: AbilityContext, options: Card[]}
+  | {type: "Targeting", ac: AbilityContext, options: Card[]}
   | {type: "Optional trigger", ac: AbilityContext}
-  | {type: "Trigger order", acs: AbilityContext[]}
+  | {type: "Trigger ordering", acs: AbilityContext[]}
 
 class GameState {
   players: Decklist[]
@@ -88,8 +88,7 @@ class GameState {
   cardsInZone(player: number, zone: Zone): Card[] {
     return this.cards.filter(c => c.ownedBy === player && c.zone === zone)
   }
-
-  //todo these arguments are in wrong order lol
+  
   private buildEffectAtoms(ac: AbilityContext): EffectAtom[] {
     //todo targets
     const atoms: EffectAtom[] = []
@@ -168,7 +167,7 @@ class GameState {
         if (!this.checkCondition(ac.player, ac.card, cond)) return false
       }
     }
-    if (ac.ability.target) {
+    if (ac.ability.targetType) {
       if (this.getValidTargets(ac).length === 0) return false
     }
     return true
@@ -189,20 +188,42 @@ class GameState {
     if (!this.canActivateAbility(ac)) {
       throw new Error(`trying to activate non-activatable ability ${ac}`)
     }
-    if (!ac.ability.target) {
+    if (!ac.ability.targetType) {
       //todo this should be extracted for safety/DRY reasons
       const atoms = this.buildEffectAtoms(ac)
       this.applyEffectAtoms(atoms)
     } else {
-      this.waitingOn = {type: "Targets", ac, options: this.getValidTargets(ac)}
+      this.waitingOn = {type: "Targeting", ac, options: this.getValidTargets(ac)}
     }
   }
 
   getValidTargets(ac: AbilityContext): Card[] {
-    if (!ac.ability.target) throw new Error(`this ability does not target ${ac}`)
-    const options = this.getAllByCriteria(ac.player, ac.ability.target.criteria)
+    if (!ac.ability.targetType) throw new Error(`this ability does not target ${ac}`)
+    const options = this.getAllByCriteria(ac.player, ac.ability.targetType.criteria)
     if (options.length === 0) throw new Error(`this ability has no valid targets ${ac}`)
     return options
+  }
+
+  areTargetsApplicable(targets: TargetPayload, ac: AbilityContext): boolean {
+    //todo rejection messages (probably)
+    if (!ac.ability.targetType) return false
+    if (targets.type !== ac.ability.targetType.type) return false
+    if (targets.type === "Single Card") {
+      return this.checkCriteria(ac.player, targets.target, ac.ability.targetType.criteria)
+    } else if (targets.type === "Multi Card") {
+      for (const target of targets.targets) {
+        if (!this.checkCriteria(ac.player, target, ac.ability.targetType.criteria)) return false
+      }
+    } else {
+      throw new Error(`unknown target type ${targets}`)
+    }
+    return true
+  }
+
+  supplyTargets(targets: TargetPayload): void {
+    if (this.waitingOn.type !== "Targeting") throw new Error(`supplying targets while waiting on ${this.waitingOn}`)
+    if (!this.areTargetsApplicable(targets, this.waitingOn.ac))
+    //?
   }
 }
 
@@ -333,14 +354,17 @@ type Ability = {
   mandatory: boolean
   reactor: boolean
   conditions?: Condition[]
-  target?: TargetType
+  targetType?: TargetType
   effects: Effect[]
   //todo hopt
 }
 
 type TargetType = {type: "Single Card", criteria: CardCriteria[]}
-  // | {type: "Multi Card", comparison: Comparison, criteria: CardCriteria[]}
+  | {type: "Multi Card", comparison: Comparison, criteria: CardCriteria[]}
   // | {type: "A and B", criteriaA: CardCriteria[], criteriaB: CardCriteria[]}
+
+type TargetPayload = {type: "Single Card", target: Card}
+  | {type: "Multi Card", targets: Card[]}
 
 type AbilityContext = {player: number, card: Card, ability: Ability}
 
@@ -364,7 +388,7 @@ const d = new CardDefinition(
       mandatory: false,
       reactor: false,
       conditions: [{type: "In zone", zone: "Field"}],
-      target: {type: "Single Card", criteria: [{type: "In Zone", zone: "Field"}]},
+      targetType: {type: "Single Card", criteria: [{type: "In Zone", zone: "Field"}]},
       effects: []
     }
   ]
