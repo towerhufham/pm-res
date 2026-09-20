@@ -4,7 +4,7 @@ import { shuffle } from "./util"
 //how does the server manage rng and secrets?
 //how do we order the deck?
 
-class RulesError extends Error {
+export class RulesError extends Error {
   constructor(message: string, data?: unknown) {
     let fullMessage = ""
     if (data) {
@@ -22,19 +22,19 @@ class RulesError extends Error {
   }
 }
 
-type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
+export type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
   | {type: "Activation", ac: AbilityContext}
   | {type: "Trigger", ac: AbilityContext}
   | {type: "End Turn"}
 
 //todo server rng response, mulligans, betting, arbitrary choices
-type WaitingOn = {type: "Setting up..."}
+export type WaitingOn = {type: "Setting up..."}
   | {type: "Main", player: number, options: AbilityContext[]}
   | {type: "Targeting", ac: AbilityContext, targetingGroups: TargetingGroup[], validTargetLists: Card[][]}
   | {type: "Optional trigger", ac: AbilityContext}
   | {type: "Trigger ordering", acs: AbilityContext[]}
 
-class GameState {
+export class GameState {
   players: Decklist[]
   cards: Card[]
   log: LogEntry[]
@@ -239,7 +239,7 @@ class GameState {
   }
 }
 
-class Decklist {
+export class Decklist {
   worlds: CardDefinition[]
   main: CardDefinition[]
   ex: CardDefinition[]
@@ -263,15 +263,15 @@ class Decklist {
   }
 }
 
-const ALL_ZONES = ["Deck", "EX", "Hand", "Field", "GY", "Suspense", "Deletion", "World"] as const
-type Zone = typeof ALL_ZONES[number]
+export const ALL_ZONES = ["Deck", "EX", "Hand", "Field", "GY", "Suspense", "Deletion", "World"] as const
+export type Zone = typeof ALL_ZONES[number]
 
-const ALL_COLORS = ["Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple"] as const
-type Color = typeof ALL_COLORS[number]
+export const ALL_COLORS = ["Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple"] as const
+export type Color = typeof ALL_COLORS[number]
 
-type CardType = "World" | "Esper" | "Core" | "Vision"
+export type CardType = "World" | "Esper" | "Core" | "Vision"
 
-class CardDefinition {
+export type CardDefinition = {
   identifier: string
   name: string
   colors: Color[]
@@ -279,18 +279,9 @@ class CardDefinition {
   ex: boolean
   // restriction?: Restriction
   abilities: Ability[]
-
-  constructor(identifier: string, name: string, colors: Color[], cardType: CardType, ex: boolean, abilities: Ability[]) {
-    this.identifier = identifier
-    this.name = name
-    this.colors = colors
-    this.cardType = cardType
-    this.ex = ex
-    this.abilities = abilities
-  }
 }
 
-class Card {
+export class Card {
   id: number
   definition: CardDefinition
   name: string
@@ -326,28 +317,28 @@ class Card {
 // --------------- effs --------------- //
 
 
-type MoveName = "Summoned" | "Destroyed" | "Sacrificed" | "Excavated"
+export type MoveName = "Summoned" | "Destroyed" | "Sacrificed" | "Excavated"
 
-type Effect = {type: "Summon this"} 
+export type Effect = {type: "Summon this"} 
   | {type: "Send this to", to: Zone}
   | {type: "Sacrifice this"}
   | {type: "Send targets to", to: Zone, tag: string}
 
-type TargetingGroup = {type: "Single Target", criteria: CardCriteria[], tag: string}
+export type TargetingGroup = {type: "Single Target", criteria: CardCriteria[], tag: string}
   | {type: "Multi Target", criteria: CardCriteria[], tag: string}
 
-type FinalizedTargets = Record<string, Card[]>
+export type FinalizedTargets = Record<string, Card[]>
 
-type EffectAtom = {ac: AbilityContext, type: "Move", moveName?: MoveName, card: Card, to: Zone} //todo should from be here?
+export type EffectAtom = {ac: AbilityContext, type: "Move", moveName?: MoveName, card: Card, to: Zone} //todo should from be here?
   | {ac: AbilityContext, type: "Target", card: Card, tag: string}
 
-type Trigger = {type: "Activated"} | {type: "This moves", from?: Zone, to?: Zone}
+export type Trigger = {type: "Activated"} | {type: "This moves", from?: Zone, to?: Zone}
 
-type Comparison = {type: "At least", n: number}
+export type Comparison = {type: "At least", n: number}
   | {type: "At most", n: number}
   | {type: "Equal to", n: number}
 
-const checkComparison = (value: number, comp: Comparison): boolean => {
+export const checkComparison = (value: number, comp: Comparison): boolean => {
   if (comp.type === "At least") {
     return value >= comp.n
   } else if (comp.type === "At most") {
@@ -359,10 +350,10 @@ const checkComparison = (value: number, comp: Comparison): boolean => {
   }
 }
 
-type Condition = { type: "Count cards", comparison: Comparison, criteria: CardCriteria[] }
+export type Condition = { type: "Count cards", comparison: Comparison, criteria: CardCriteria[] }
   | {type: "In zone", zone: Zone}
 
-type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
+export type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
   | { type: "None of", subcriteria: CardCriteria[] }
   | { type: "Name includes", substring: string }
   | { type: "Colors are exactly", colors: Color[] }
@@ -370,7 +361,7 @@ type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
   | { type: "In Zone", zone: Zone }
   | { type: "Controlled by", who: "Us" | "Opponent"}
 
-type Ability = {
+export type Ability = {
   trigger: Trigger
   mandatory: boolean
   reactor: boolean
@@ -383,49 +374,49 @@ type Ability = {
 // type TargetPayload = {type: "Single Card", target: Card}
 //   | {type: "Multi Card", targets: Card[]}
 
-type AbilityContext = {player: number, card: Card, ability: Ability}
+export type AbilityContext = {player: number, card: Card, ability: Ability}
 
 // --------------- test --------------- //
 
-const d = new CardDefinition(
-  "TEST-001",
-  "Pythagorean Angel",
-  ["Yellow", "Teal"],
-  "Esper",
-  false,
-  [
-    {
-      trigger: {type: "Activated"},
-      mandatory: false,
-      reactor: false,
-      conditions: [{type: "In zone", zone: "Hand"}],
-      targetingGroups: [],
-      effects: [{type: "Summon this"}]
-    }, {
-      trigger: {type: "Activated"},
-      mandatory: false,
-      reactor: false,
-      conditions: [{type: "In zone", zone: "Field"}],
-      targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: ""}],
-      effects: [{type: "Send targets to", to: "GY", tag: ""}]
-    }
-  ]
-)
-const list = new Decklist(Array(50).fill(d))
-const game = new GameState([list])
-console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
-console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
-game.draw(0)
-console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
-console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
-const ac = game.getAllActivatableAbilities(0)[0]!
-game.startActivation(ac)
-console.log(`${game.cardsInZone(0, "Field").length} on field`)
-console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
-const onfield = game.cardsInZone(0, "Field")[0]!
-game.startActivation({player: 0, card: onfield, ability: onfield.abilities[1]!})
-console.log(`waiting on: ${game.waitingOn.type}`)
-game.supplyTargets({"": [onfield]})
-console.log(`${game.cardsInZone(0, "Field").length} on field`)
-console.log(`waiting on: ${game.waitingOn.type}`)
-throw new RulesError("testing!", onfield)
+// const d = new CardDefinition(
+//   "TEST-001",
+//   "Pythagorean Angel",
+//   ["Yellow", "Teal"],
+//   "Esper",
+//   false,
+//   [
+//     {
+//       trigger: {type: "Activated"},
+//       mandatory: false,
+//       reactor: false,
+//       conditions: [{type: "In zone", zone: "Hand"}],
+//       targetingGroups: [],
+//       effects: [{type: "Summon this"}]
+//     }, {
+//       trigger: {type: "Activated"},
+//       mandatory: false,
+//       reactor: false,
+//       conditions: [{type: "In zone", zone: "Field"}],
+//       targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: ""}],
+//       effects: [{type: "Send targets to", to: "GY", tag: ""}]
+//     }
+//   ]
+// )
+// const list = new Decklist(Array(50).fill(d))
+// const game = new GameState([list])
+// console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
+// console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
+// game.draw(0)
+// console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
+// console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
+// const ac = game.getAllActivatableAbilities(0)[0]!
+// game.startActivation(ac)
+// console.log(`${game.cardsInZone(0, "Field").length} on field`)
+// console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
+// const onfield = game.cardsInZone(0, "Field")[0]!
+// game.startActivation({player: 0, card: onfield, ability: onfield.abilities[1]!})
+// console.log(`waiting on: ${game.waitingOn.type}`)
+// game.supplyTargets({"": [onfield]})
+// console.log(`${game.cardsInZone(0, "Field").length} on field`)
+// console.log(`waiting on: ${game.waitingOn.type}`)
+// throw new RulesError("testing!", onfield)
