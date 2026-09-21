@@ -28,11 +28,29 @@ export type LogEntry = {type: "Effects", effectAtoms: EffectAtom[]}
   | {type: "End Turn"}
 
 //todo server rng response, mulligans, betting, arbitrary choices
+//
+// The trigger stack, end to end:
+//  - queueTriggers() is the one entrypoint for "some new triggers just appeared".
+//    It's called after any effect resolves (including activations with no targets)
+//    and after any targets get supplied. It hands the new triggers to placeNewTriggers,
+//    which puts them on top of whatever stack was already waiting underneath.
+//  - placeNewTriggers() walks players in priority order (APNAP-ish) and lets each one
+//    order their own simultaneous triggers, pausing on "Ordering triggers" only when a
+//    player actually has a choice to make (2+ triggers). Once everyone's triggers are
+//    placed, the merged list becomes the new stack and advanceStack() takes over.
+//  - advanceStack() looks at the top of the stack. Optional (non-mandatory) triggers
+//    pause on "Optional trigger" so their controller can decline them outright; everything
+//    else goes to resolveStackItem().
+//  - resolveStackItem() is also what startActivation() and supplyTargets() funnel into -
+//    an ability with targeting groups pauses on "Targeting" (carrying the rest of the
+//    stack along with it), otherwise it resolves immediately and loops back into
+//    queueTriggers() with whatever it triggered.
+// So "stack"/"restOfStack" fields below always mean "what resolves after this step."
 export type WaitingOn = {type: "Setting up..."}
   | {type: "Main", player: number, options: AbilityContext[]}
-  | {type: "Targeting", ac: AbilityContext, targetingGroups: TargetingGroup[], validTargetLists: Card[][], pendingTriggers: AbilityContext[]}
-  | {type: "Optional trigger", ac: AbilityContext, pendingTriggers: AbilityContext[]}
-  | {type: "Ordering triggers", topPriorityPlayer: number, ordered: AbilityContext[], unordered: AbilityContext[]}
+  | {type: "Targeting", ac: AbilityContext, targetingGroups: TargetingGroup[], validTargetLists: Card[][], stack: AbilityContext[]}
+  | {type: "Optional trigger", ac: AbilityContext, stack: AbilityContext[]}
+  | {type: "Ordering triggers", remainingPlayers: number[], ordered: AbilityContext[], toOrder: AbilityContext[], unplaced: AbilityContext[], stack: AbilityContext[]}
 
 export class GameState {
   players: Decklist[]
@@ -209,38 +227,30 @@ export class GameState {
     return found
   }
 
-  waitForTargets(ac: AbilityContext, pendingTriggers: AbilityContext[]): void {
+  waitForTargets(ac: AbilityContext, stack: AbilityContext[]): void {
     const validTargetLists = []
     const targetingGroups = ac.ability.targetingGroups
     for (const group of targetingGroups) {
       validTargetLists.push(this.getAllByCriteria(ac.player, group.criteria))
     }
-    this.waitingOn = {type: "Targeting", ac, targetingGroups, validTargetLists, pendingTriggers}
+    this.waitingOn = {type: "Targeting", ac, targetingGroups, validTargetLists, stack}
   }
 
   startActivation(ac: AbilityContext): void {
     if (!this.canActivateAbility(ac)) {
       throw new RulesError("trying to activate non-activatable ability", ac)
     }
-    const targetingGroups = ac.ability.targetingGroups
-    if (targetingGroups.length === 0) {
-      //do the singular ability effect, then do triggers
-      const triggers = this.applyEffect(ac, {})
-      this.handleTriggers(triggers)
-    } else {
-      this.waitForTargets(ac, [])
-    }
+    //an activation isn't itself part of a trigger stack, so it resolves against an empty one -
+    //but whatever it triggers absolutely is, which is why this hands off to resolveStackItem/queueTriggers
+    //exactly like a stack item would.
+    this.resolveStackItem(ac, [])
   }
 
   supplyTargets(targets: FinalizedTargets): void {
-    //todo validate targets
+    //todo validate targets against waitingOn.validTargetLists
     if (this.waitingOn.type !== "Targeting") throw new RulesError("supplying targets while not waiting for them", this.waitingOn)
-    if (this.waitingOn.pendingTriggers.length === 0) {
-      const triggers = this.applyEffect(this.waitingOn.ac, targets)
-      this.handleTriggers(triggers)
-    } else {
-      this.handleTriggers(this.waitingOn.pendingTriggers)
-    }
+    const {ac, stack} = this.waitingOn
+    this.resolveNow(ac, targets, stack)
   }
 
   applyEffect(ac: AbilityContext, targets: FinalizedTargets): AbilityContext[] {
@@ -248,29 +258,118 @@ export class GameState {
     const atoms = this.buildEffectAtoms(ac, targets)
     this.applyEffectAtoms(atoms)
     this.log.push({type: "Effects", effectAtoms: atoms})
-    //todo go into triggers if extant
     const triggers = this.checkForTriggers(atoms)
     return triggers
   }
 
-  handleTriggers(triggers: AbilityContext[]): void {
-    if (triggers.length === 0) {
-      this.waitingOn = {type: "Main", player: this.turnPlayer, options: this.getAllActivatableAbilities(this.turnPlayer)}
-    } else if (triggers.length === 1) {
-      //only one trigger requires no ordering step
-      const ac = triggers[0]!
-      //todo i think this will be extractable
-      if (!ac.ability.mandatory) {
-        this.waitingOn = {type: "Optional trigger", ac, pendingTriggers: []}
-      } else if (ac.ability.targetingGroups.length > 0) {
-        this.waitForTargets(ac, [])
-      } else {
-        this.applyEffect(ac, {})
-      }
+  //the single entrypoint for "some new triggers just appeared" - called after any effect
+  //resolves and after any targets get supplied. Puts the new triggers on top of restOfStack
+  //(the part of the stack that was already waiting underneath) and picks up resolution from there.
+  queueTriggers(newTriggers: AbilityContext[], restOfStack: AbilityContext[]): void {
+    //APNAP: the active player locks in their own order first, then each other player in turn
+    //order does the same. placeNewTriggers walks this same list, but prepends each player's
+    //block as it's settled - so the active player, asked first, still ends up at the *bottom*
+    //of the resulting stack (they resolve last), same as if they'd been placed there directly.
+    const askingOrder = this.priorityOrderFrom(this.turnPlayer)
+    this.placeNewTriggers(askingOrder, [], newTriggers, restOfStack)
+  }
+
+  //full rotation of every player, starting from `start` and moving through priority order
+  priorityOrderFrom(start: number): number[] {
+    const order: number[] = []
+    let player = start
+    for (let i = 0; i < this.players.length; i++) {
+      order.push(player)
+      player = this.previousPlayer(player)
+    }
+    return order
+  }
+
+  //walks `remainingPlayers`, letting each one order their own simultaneous triggers among
+  //`unplaced` before moving to the next player. Pauses on "Ordering triggers" only when a
+  //player actually has a choice to make (2+ of their own triggers); a lone trigger needs no
+  //ordering, so it's placed automatically and we move straight on to the next player.
+  placeNewTriggers(remainingPlayers: number[], ordered: AbilityContext[], unplaced: AbilityContext[], stack: AbilityContext[]): void {
+    if (unplaced.length === 0) {
+      this.advanceStack([...ordered, ...stack])
+      return
+    }
+    const [player, ...rest] = remainingPlayers
+    const theirs = unplaced.filter(ac => ac.player === player)
+    if (theirs.length <= 1) {
+      //if zero or one triggers, they have nothing to order.
+      //prepended, not appended: the player being asked right now ends up underneath
+      //whoever gets asked after them, so the last player asked resolves first.
+      this.placeNewTriggers(rest, [...theirs, ...ordered], unplaced.filter(ac => !theirs.includes(ac)), stack)
     } else {
-      //todo figure out how server handles this (ordering triggers)
-      const topPriorityPlayer = this.previousPlayer(this.turnPlayer)
-      this.orderTriggers(topPriorityPlayer, [], triggers)
+      this.waitingOn = {
+        type: "Ordering triggers",
+        remainingPlayers: rest,
+        ordered,
+        toOrder: theirs,
+        unplaced: unplaced.filter(ac => !theirs.includes(ac)),
+        stack
+      }
+    }
+  }
+
+  //`order` must be all of waitingOn.toOrder, in the order that player wants them to resolve
+  supplyTriggerOrder(order: AbilityContext[]): void {
+    if (this.waitingOn.type !== "Ordering triggers") throw new RulesError("supplying trigger order while we're not waiting for it", this.waitingOn)
+    //todo validate order (is it a permutation of waitingOn.toOrder, are they all triggers, etc.)
+    const {remainingPlayers, ordered, unplaced, stack} = this.waitingOn
+    //prepended, same reasoning as in placeNewTriggers
+    this.placeNewTriggers(remainingPlayers, [...order, ...ordered], unplaced, stack)
+  }
+
+  //stack is fully ordered at this point - just work through it one item at a time.
+  advanceStack(stack: AbilityContext[]): void {
+    if (stack.length === 0) {
+      this.waitingOn = {type: "Main", player: this.turnPlayer, options: this.getAllActivatableAbilities(this.turnPlayer)}
+      return
+    }
+    const [ac, ...restOfStack] = stack
+    if (ac!.ability.mandatory) {
+      //mandatory, resolves without player input
+      this.resolveStackItem(ac!, restOfStack)
+    } else {
+      this.waitingOn = {type: "Optional trigger", ac: ac!, stack: restOfStack}
+    }
+  }
+
+  supplyOptionalTriggerChoice(use: boolean): void {
+    if (this.waitingOn.type !== "Optional trigger") throw new RulesError("supplying optional trigger choice while not waiting for one", this.waitingOn)
+    const {ac, stack} = this.waitingOn
+    if (use) {
+      this.resolveStackItem(ac, stack)
+    } else {
+      this.advanceStack(stack)
+    }
+  }
+
+  //resolves ac right now if it can, or pauses for targets first. Shared by activations
+  //(with an empty restOfStack) and by trigger resolution, since both cases are "resolve this
+  //ability, then go figure out what to do with whatever it triggers."
+  resolveStackItem(ac: AbilityContext, restOfStack: AbilityContext[]): void {
+    if (ac.ability.targetingGroups.length > 0) {
+      this.waitForTargets(ac, restOfStack)
+    } else {
+      this.resolveNow(ac, {}, restOfStack)
+    }
+  }
+
+  //conditions are rechecked right as an ability would resolve - something else on the stack
+  //may have already changed the board since this one triggered. If they no longer hold, the
+  //ability just fizzles: no effect, but whatever's still waiting underneath carries on.
+  //(a simplification of Magic's "intervening if" - we don't distinguish those from an
+  //ability's other conditions, so we always recheck rather than only for that phrasing.)
+  private resolveNow(ac: AbilityContext, targets: FinalizedTargets, restOfStack: AbilityContext[]): void {
+    const conditionsStillMet = (ac.ability.conditions ?? []).every(cond => this.checkCondition(ac.player, ac.card, cond))
+    if (conditionsStillMet) {
+      const newTriggers = this.applyEffect(ac, targets)
+      this.queueTriggers(newTriggers, restOfStack)
+    } else {
+      this.queueTriggers([], restOfStack)
     }
   }
 
@@ -306,48 +405,6 @@ export class GameState {
     return triggerable
   }
 
-  orderTriggers(topPriorityPlayer: number, ordered: AbilityContext[], unordered: AbilityContext[]): void {
-    let newOrdered: AbilityContext[] = [...ordered]
-    let newUnordered: AbilityContext[] = [...unordered]
-    let nextPlayer = topPriorityPlayer
-    const playerOrder: number[] = []
-    for (let i = 0; i < this.players.length; i++) {
-      playerOrder.push(nextPlayer)
-      nextPlayer = this.previousPlayer(nextPlayer)
-    }
-    for (const player of playerOrder) {
-      const ours = newUnordered.filter(ac => ac.player === player)
-      if (ours.length === 0) {
-        continue
-      } else if (ours.length === 1) {
-        newOrdered = [...newOrdered, ours[0]!]
-        newUnordered = newUnordered.filter(ac => ac !== ours[0]!)
-      } else {
-        this.waitingOn = {type: "Ordering triggers", 
-          topPriorityPlayer, 
-          ordered: newOrdered, 
-          unordered: newUnordered
-        }
-      }
-    }
-  }
-
-  supplyTriggerOrder(addToOrder: AbilityContext[]): void {
-    if (this.waitingOn.type !== "Ordering triggers") throw new RulesError("supplying trigger order while we're not waiting for it", this.waitingOn)
-    //todo validate these triggers
-    this.orderTriggers(
-      this.waitingOn.topPriorityPlayer,
-      [...this.waitingOn.ordered, ...addToOrder],
-      this.waitingOn.unordered.filter(ac => !addToOrder.includes(ac))
-    )
-  }
-
-  resolveAllTriggers(triggers: AbilityContext[]): void {
-    const newTriggers: AbilityContext[] = []
-    for (const trigger of triggers) {
-      this.
-    }
-  }
 }
 
 export class Decklist {
