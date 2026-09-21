@@ -22,7 +22,7 @@ export class RulesError extends Error {
   }
 }
 
-export type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
+export type LogEntry = {type: "Effects", effectAtoms: EffectAtom[]}
   | {type: "Activation", ac: AbilityContext}
   | {type: "Trigger", ac: AbilityContext}
   | {type: "End Turn"}
@@ -30,9 +30,9 @@ export type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
 //todo server rng response, mulligans, betting, arbitrary choices
 export type WaitingOn = {type: "Setting up..."}
   | {type: "Main", player: number, options: AbilityContext[]}
-  | {type: "Targeting", ac: AbilityContext, targetingGroups: TargetingGroup[], validTargetLists: Card[][]}
-  | {type: "Optional trigger", ac: AbilityContext}
-  | {type: "Trigger ordering", acs: AbilityContext[]}
+  | {type: "Targeting", ac: AbilityContext, targetingGroups: TargetingGroup[], validTargetLists: Card[][], pendingTriggers: AbilityContext[]}
+  | {type: "Optional trigger", ac: AbilityContext, pendingTriggers: AbilityContext[]}
+  | {type: "Ordering triggers", topPriorityPlayer: number, ordered: AbilityContext[], unordered: AbilityContext[]}
 
 export class GameState {
   players: Decklist[]
@@ -209,33 +209,144 @@ export class GameState {
     return found
   }
 
+  waitForTargets(ac: AbilityContext, pendingTriggers: AbilityContext[]): void {
+    const validTargetLists = []
+    const targetingGroups = ac.ability.targetingGroups
+    for (const group of targetingGroups) {
+      validTargetLists.push(this.getAllByCriteria(ac.player, group.criteria))
+    }
+    this.waitingOn = {type: "Targeting", ac, targetingGroups, validTargetLists, pendingTriggers}
+  }
+
   startActivation(ac: AbilityContext): void {
     if (!this.canActivateAbility(ac)) {
       throw new RulesError("trying to activate non-activatable ability", ac)
     }
     const targetingGroups = ac.ability.targetingGroups
     if (targetingGroups.length === 0) {
-      this.applyEffect(ac, {})
+      //do the singular ability effect, then do triggers
+      const triggers = this.applyEffect(ac, {})
+      this.handleTriggers(triggers)
     } else {
-      const validTargetLists = []
-      for (const group of targetingGroups) {
-        validTargetLists.push(this.getAllByCriteria(ac.player, group.criteria))
-      }
-      this.waitingOn = {type: "Targeting", ac, targetingGroups, validTargetLists}
+      this.waitForTargets(ac, [])
     }
   }
 
   supplyTargets(targets: FinalizedTargets): void {
+    //todo validate targets
     if (this.waitingOn.type !== "Targeting") throw new RulesError("supplying targets while not waiting for them", this.waitingOn)
-    // if (!this.areTargetsApplicable(targets, this.waitingOn.ac))
-    this.applyEffect(this.waitingOn.ac, targets)
+    if (this.waitingOn.pendingTriggers.length === 0) {
+      const triggers = this.applyEffect(this.waitingOn.ac, targets)
+      this.handleTriggers(triggers)
+    } else {
+      this.handleTriggers(this.waitingOn.pendingTriggers)
+    }
   }
 
-  applyEffect(ac: AbilityContext, targets: FinalizedTargets): void {
+  applyEffect(ac: AbilityContext, targets: FinalizedTargets): AbilityContext[] {
+    //returns triggers
     const atoms = this.buildEffectAtoms(ac, targets)
     this.applyEffectAtoms(atoms)
-    //todo won't always be ac's player!
-    this.waitingOn = {type: "Main", player: ac.player, options: this.getAllActivatableAbilities(ac.player)}
+    this.log.push({type: "Effects", effectAtoms: atoms})
+    //todo go into triggers if extant
+    const triggers = this.checkForTriggers(atoms)
+    return triggers
+  }
+
+  handleTriggers(triggers: AbilityContext[]): void {
+    if (triggers.length === 0) {
+      this.waitingOn = {type: "Main", player: this.turnPlayer, options: this.getAllActivatableAbilities(this.turnPlayer)}
+    } else if (triggers.length === 1) {
+      //only one trigger requires no ordering step
+      const ac = triggers[0]!
+      //todo i think this will be extractable
+      if (!ac.ability.mandatory) {
+        this.waitingOn = {type: "Optional trigger", ac, pendingTriggers: []}
+      } else if (ac.ability.targetingGroups.length > 0) {
+        this.waitForTargets(ac, [])
+      } else {
+        this.applyEffect(ac, {})
+      }
+    } else {
+      //todo figure out how server handles this (ordering triggers)
+      const topPriorityPlayer = this.previousPlayer(this.turnPlayer)
+      this.orderTriggers(topPriorityPlayer, [], triggers)
+    }
+  }
+
+  nextPlayer(n: number): number {
+    //next in turn order
+    //todo dead players?
+    if (n > 0) return n - 1
+    else return this.players.length - 1
+  }
+
+  previousPlayer(n: number): number {
+    //previous in turn order, useful for priority
+    //todo dead players?
+    if (n === this.players.length - 1) return 0
+    else return n + 1
+  }
+
+  checkForTriggers(atoms: EffectAtom[]): AbilityContext[] {
+    //todo make this logic less... bad
+    const triggerable: AbilityContext[] = []
+    for (const atom of atoms) {
+      for (const card of this.cards) {
+        for (const ability of card.abilities) {
+          if (ability.trigger.type === "Activated") continue
+          else if (ability.trigger.type === "This moves") {
+            if (atom.type === "Move" && atom.card === card && atom.to === ability.trigger.to) {
+              triggerable.push({player: card.controlledBy, card, ability})
+            }
+          }
+        }
+      }
+    }
+    return triggerable
+  }
+
+  orderTriggers(topPriorityPlayer: number, ordered: AbilityContext[], unordered: AbilityContext[]): void {
+    let newOrdered: AbilityContext[] = [...ordered]
+    let newUnordered: AbilityContext[] = [...unordered]
+    let nextPlayer = topPriorityPlayer
+    const playerOrder: number[] = []
+    for (let i = 0; i < this.players.length; i++) {
+      playerOrder.push(nextPlayer)
+      nextPlayer = this.previousPlayer(nextPlayer)
+    }
+    for (const player of playerOrder) {
+      const ours = newUnordered.filter(ac => ac.player === player)
+      if (ours.length === 0) {
+        continue
+      } else if (ours.length === 1) {
+        newOrdered = [...newOrdered, ours[0]!]
+        newUnordered = newUnordered.filter(ac => ac !== ours[0]!)
+      } else {
+        this.waitingOn = {type: "Ordering triggers", 
+          topPriorityPlayer, 
+          ordered: newOrdered, 
+          unordered: newUnordered
+        }
+      }
+    }
+  }
+
+  supplyTriggerOrder(addToOrder: AbilityContext[]): void {
+    if (this.waitingOn.type !== "Ordering triggers") throw new RulesError("supplying trigger order while we're not waiting for it", this.waitingOn)
+    //todo validate these triggers
+    this.orderTriggers(
+      this.waitingOn.topPriorityPlayer,
+      [...this.waitingOn.ordered, ...addToOrder],
+      this.waitingOn.unordered.filter(ac => !addToOrder.includes(ac))
+    )
+  }
+
+  resolveAllTriggers(triggers: AbilityContext[]): void {
+    const newTriggers: AbilityContext[] = []
+    for (const trigger of triggers) {
+      this.
+    }
   }
 }
 
@@ -332,7 +443,7 @@ export type FinalizedTargets = Record<string, Card[]>
 export type EffectAtom = {ac: AbilityContext, type: "Move", moveName?: MoveName, card: Card, to: Zone} //todo should from be here?
   | {ac: AbilityContext, type: "Target", card: Card, tag: string}
 
-export type Trigger = {type: "Activated"} | {type: "This moves", from?: Zone, to?: Zone}
+export type Trigger = {type: "Activated"} | {type: "This moves", from?: Zone, to: Zone}
 
 export type Comparison = {type: "At least", n: number}
   | {type: "At most", n: number}

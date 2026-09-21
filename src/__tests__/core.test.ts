@@ -33,6 +33,31 @@ const bouncer: CardDefinition = {
   ]
 }
 
+const autobouncer: CardDefinition = {
+  identifier: "TEST-002",
+  name: "Auto-Bouncer",
+  colors: [],
+  cardType: "Esper",
+  ex: false,
+  abilities: [
+    {
+      trigger: {type: "Activated"},
+      mandatory: false,
+      reactor: false,
+      conditions: [{type: "In zone", zone: "Hand"}],
+      targetingGroups: [],
+      effects: [{type: "Summon this"}]
+    }, {
+      trigger: {type: "This moves", to: "Field"},
+      mandatory: true,
+      reactor: false,
+      // targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: ""}],
+      targetingGroups: [],
+      effects: [{type: "Send this to", to: "GY"}]
+    }
+  ]
+}
+
 // --------------- Hit it, boys! --------------- //
 
 it("starts with no cards", () => {
@@ -79,6 +104,17 @@ it("waits for targets and supplies them", () => {
   game.startActivation({player: 0, card, ability: card.abilities[1]!})
   expect(game.waitingOn.type).toBe("Targeting")
   game.supplyTargets({"": [card]})
+  expect(game.waitingOn.type).toBe("Main")
+  expect(card.zone).toBe("GY")
+})
+
+// --------------- Triggers --------------- //
+
+it("automatically applies mandatory triggers", () => {
+  const game = emptyGame()
+  const card = game.spawnCard(0, autobouncer)
+  game.moveCard(card, "Hand")
+  game.startActivation({player: 0, card, ability: card.abilities[0]!})
   expect(game.waitingOn.type).toBe("Main")
   expect(card.zone).toBe("GY")
 })
