@@ -1,4 +1,5 @@
 import { shuffle } from "./util"
+import { Chain } from "./chain"
 
 //current mysteries
 //how does the server manage rng and secrets?
@@ -27,21 +28,14 @@ export type LogEntry = {type: "Effects", effectAtom: EffectAtom[]}
   | {type: "Trigger", ac: AbilityContext}
   | {type: "End Turn"}
 
-//todo server rng response, mulligans, betting, arbitrary choices
-export type WaitingOn = {type: "Setting up..."}
-  | {type: "Main", player: number, options: AbilityContext[]}
-  | {type: "Targeting", ac: AbilityContext, targetingGroups: TargetingGroup[], validTargetLists: Card[][]}
-  | {type: "Optional trigger", ac: AbilityContext}
-  | {type: "Trigger ordering", acs: AbilityContext[]}
-
 export class GameState {
   players: Decklist[]
   cards: Card[]
   log: LogEntry[]
   round: number
   turnPlayer: number
-  waitingOn: WaitingOn
   nextId: number
+  chain: Chain | null
 
   constructor(decklists: Decklist[]) {
     if (decklists.length === 0) throw new RulesError(`can't make a game with no players!`)
@@ -50,8 +44,8 @@ export class GameState {
     this.log = [] //todo setup in logs
     this.round = 1
     this.turnPlayer = 0
-    this.waitingOn = {type: "Setting up..."}
     this.nextId = 0
+    this.chain = null
     this.setup()
   }
 
@@ -72,8 +66,7 @@ export class GameState {
       //todo deck order and/or server rng
       // this.shuffleDeck(playerIndex)
     }
-    //todo draw hand and/or mull
-    this.waitingOn = {type: "Main", player: 0, options: this.getAllActivatableAbilities(0)}
+    //todo draw hand and/or mulligans
   }
 
   // shuffleDeck(player: number): void {
@@ -106,7 +99,11 @@ export class GameState {
     return this.cards.filter(c => c.ownedBy === player && c.zone === zone)
   }
 
-  private buildEffectAtoms(ac: AbilityContext): EffectAtom[] {
+  nextPlayer(player: number): number {
+    return (player >= this.players.length - 1) ? 0 : player + 1
+  }
+
+  buildEffectAtoms(ac: AbilityContext): EffectAtom[] {
     //todo check to make sure the targets in ac are valid
     const atoms: EffectAtom[] = []
     for (const eff of ac.ability.effects) {
@@ -130,8 +127,7 @@ export class GameState {
     return atoms
   }
 
-  private applyEffectAtoms(atoms: EffectAtom[]): void {
-    //todo check triggers
+  applyEffectAtoms(atoms: EffectAtom[]): void {
     for (const atom of atoms) {
       if (atom.type === "Move") {
         this.moveCard(atom.card, atom.to)
@@ -214,31 +210,28 @@ export class GameState {
     if (!this.canActivateAbility(ac)) {
       throw new RulesError("trying to activate non-activatable ability", ac)
     }
-    //todo replace this block with a target validation function (also used above)
-    const targetingGroups = ac.ability.targetingGroups
-    if (targetingGroups.length === 0) {
-      this.applyEffect(ac)
-    } else {
-      const validTargetLists = []
-      for (const group of targetingGroups) {
-        validTargetLists.push(this.getAllByCriteria(ac.player, group.criteria))
+    //todo for now im assuming frontend will ensure targets are put in ac
+    //my logic is that it will *never* be unexpected to have to pick targets,
+    //the server doesn't need to inform us
+    this.chain = new Chain(this, ac)
+  }
+
+  checkForTriggers(atoms: EffectAtom[]): AbilityContext[] {
+    //todo make this logic less... bad
+    const triggerable: AbilityContext[] = []
+    for (const atom of atoms) {
+      for (const card of this.cards) {
+        for (const ability of card.abilities) {
+          if (ability.trigger.type === "Activated") continue
+          else if (ability.trigger.type === "This moves") {
+            if (atom.type === "Move" && atom.card === card && atom.to === ability.trigger.to) {
+              triggerable.push({player: card.controlledBy, card, ability})
+            }
+          }
+        }
       }
-      this.waitingOn = {type: "Targeting", ac, targetingGroups, validTargetLists}
     }
-  }
-
-  supplyTargets(targets: FinalizedTargets): void {
-    if (this.waitingOn.type !== "Targeting") throw new RulesError("supplying targets while not waiting for them", this.waitingOn)
-    // if (!this.areTargetsApplicable(targets, this.waitingOn.ac))
-    this.applyEffect({...this.waitingOn.ac, targets})
-  }
-
-  applyEffect(ac: AbilityContext): void {
-    //todo more target validation
-    const atoms = this.buildEffectAtoms(ac)
-    this.applyEffectAtoms(atoms)
-    //todo won't always be ac's player!
-    this.waitingOn = {type: "Main", player: ac.player, options: this.getAllActivatableAbilities(ac.player)}
+    return triggerable
   }
 }
 
