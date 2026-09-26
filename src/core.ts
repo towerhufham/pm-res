@@ -106,8 +106,8 @@ export class GameState {
     return this.cards.filter(c => c.ownedBy === player && c.zone === zone)
   }
 
-  private buildEffectAtoms(ac: AbilityContext, finalTargets: FinalizedTargets): EffectAtom[] {
-    //todo targets
+  private buildEffectAtoms(ac: AbilityContext): EffectAtom[] {
+    //todo check to make sure the targets in ac are valid
     const atoms: EffectAtom[] = []
     for (const eff of ac.ability.effects) {
       if (eff.type === "Summon this") {
@@ -117,7 +117,8 @@ export class GameState {
       } else if (eff.type === "Sacrifice this") {
         atoms.push({type: "Move", ac, card: ac.card, moveName: "Sacrificed", to: "GY"})
       } else if (eff.type === "Send targets to") {
-        const targets = finalTargets[eff.tag]
+        // if (!ac.targets) throw new RulesError("trying to 'send target to' with no finalized targets")
+        const targets = ac.targets![eff.tag]
         if (!targets) throw new RulesError("no targets for tag", eff.tag)
         for (const target of targets) {
           atoms.push({type: "Move", ac, card: target, to: eff.to})
@@ -213,9 +214,10 @@ export class GameState {
     if (!this.canActivateAbility(ac)) {
       throw new RulesError("trying to activate non-activatable ability", ac)
     }
+    //todo replace this block with a target validation function (also used above)
     const targetingGroups = ac.ability.targetingGroups
     if (targetingGroups.length === 0) {
-      this.applyEffect(ac, {})
+      this.applyEffect(ac)
     } else {
       const validTargetLists = []
       for (const group of targetingGroups) {
@@ -228,11 +230,12 @@ export class GameState {
   supplyTargets(targets: FinalizedTargets): void {
     if (this.waitingOn.type !== "Targeting") throw new RulesError("supplying targets while not waiting for them", this.waitingOn)
     // if (!this.areTargetsApplicable(targets, this.waitingOn.ac))
-    this.applyEffect(this.waitingOn.ac, targets)
+    this.applyEffect({...this.waitingOn.ac, targets})
   }
 
-  applyEffect(ac: AbilityContext, targets: FinalizedTargets): void {
-    const atoms = this.buildEffectAtoms(ac, targets)
+  applyEffect(ac: AbilityContext): void {
+    //todo more target validation
+    const atoms = this.buildEffectAtoms(ac)
     this.applyEffectAtoms(atoms)
     //todo won't always be ac's player!
     this.waitingOn = {type: "Main", player: ac.player, options: this.getAllActivatableAbilities(ac.player)}
@@ -374,7 +377,7 @@ export type Ability = {
 // type TargetPayload = {type: "Single Card", target: Card}
 //   | {type: "Multi Card", targets: Card[]}
 
-export type AbilityContext = {player: number, card: Card, ability: Ability}
+export type AbilityContext = {player: number, card: Card, ability: Ability, targets?: FinalizedTargets}
 
 // --------------- test --------------- //
 
