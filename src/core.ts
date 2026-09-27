@@ -120,6 +120,14 @@ export class GameState {
         for (const target of targets) {
           atoms.push({type: "Move", ac, card: target, to: eff.to})
         }
+      } else if (eff.type === "Send all to GY") {
+        let allOnField: Card[] = []
+        for (let i = 0; i < this.players.length; i++) {
+          allOnField = [...allOnField, ...this.cardsInZone(i, "Field")]
+        }
+        for (const card of allOnField) {
+          atoms.push({type: "Move", ac, card, to: "GY"})
+        }
       } else {
         throw new RulesError("unknown effect type in eff", eff)
       }
@@ -315,10 +323,13 @@ export class Card {
 
 export type MoveName = "Summoned" | "Destroyed" | "Sacrificed" | "Excavated"
 
+//todo these can be more composable (even on top of EffectAtom composition) 
+//we're gonna use shorthand alias variables, so
 export type Effect = {type: "Summon this"} 
   | {type: "Send this to", to: Zone}
   | {type: "Sacrifice this"}
   | {type: "Send targets to", to: Zone, tag: string}
+  | {type: "Send all to GY"} //mostly debug
 
 export type TargetingGroup = {type: "Single Target", criteria: CardCriteria[], tag: string}
   | {type: "Multi Target", criteria: CardCriteria[], tag: string}
