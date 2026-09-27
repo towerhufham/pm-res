@@ -8,7 +8,7 @@ import { Chain } from "./chain"
 export class RulesError extends Error {
   constructor(message: string, data?: unknown) {
     let fullMessage = ""
-    if (data) {
+    if (data !== undefined) {
       try {
         fullMessage = `[Rules Error: ${message}] ${JSON.stringify(data)}`
       } catch (e: unknown) {
@@ -149,9 +149,9 @@ export class GameState {
     if (Array.isArray(criteria)) return criteria.every(c => this.checkCriteria(asPlayer, card, c))
     if (criteria.type === "Any of") {
       for (const sub of criteria.subcriteria) {
-        if (!this.checkCriteria(asPlayer, card, sub)) return false
+        if (this.checkCriteria(asPlayer, card, sub)) return true
       }
-      return true
+      return false
     } else if (criteria.type === "None of") {
       for (const sub of criteria.subcriteria) {
         if (this.checkCriteria(asPlayer, card, sub)) return false
@@ -162,11 +162,10 @@ export class GameState {
     } else if (criteria.type === "Name includes") {
       return card.name.includes(criteria.substring)
     } else if (criteria.type === "Colors are exactly") {
-      return card.colors.every((color, i) => color === criteria.colors[i])
+      return card.colors.length === criteria.colors.length 
+        && card.colors.every((color, i) => color === criteria.colors[i])
     } else if (criteria.type === "Colors within") {
       return card.colors.every(color => criteria.colors.includes(color))
-    } else if (criteria.type === "Controlled by") {
-      return card.controlledBy === asPlayer
     } else {
       throw new RulesError("unknown criteria", criteria)
     }
@@ -366,7 +365,6 @@ export type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
   | { type: "Colors are exactly", colors: Color[] }
   | { type: "Colors within", colors: Color[] }
   | { type: "In Zone", zone: Zone }
-  | { type: "Controlled by", who: "Us" | "Opponent"}
 
 export type Ability = {
   trigger: Trigger
