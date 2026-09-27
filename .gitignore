@@ -37,3 +37,6 @@ dist-ssr/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# My local notes
+notes/
