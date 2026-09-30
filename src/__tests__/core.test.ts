@@ -18,16 +18,12 @@ const bomb: CardDefinition = {
   ex: false,
   abilities: [
     {
-      trigger: {type: "Activated"},
-      mandatory: false,
-      reactor: false,
+      style: {type: "Activated"},
       conditions: [{type: "In zone", zone: "Hand"}],
       targetingGroups: [],
       effects: [{type: "Summon this"}]
     }, {
-      trigger: {type: "Activated"},
-      mandatory: false,
-      reactor: false,
+      style: {type: "Activated"},
       conditions: [{type: "In zone", zone: "Field"}],
       targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: ""}],
       effects: [{type: "Send targets to", to: "GY", tag: ""}]
@@ -43,16 +39,12 @@ const springy: CardDefinition = {
   ex: false,
   abilities: [
     {
-      trigger: {type: "Activated"},
-      mandatory: false,
-      reactor: false,
+      style: {type: "Activated"},
       conditions: [{type: "In zone", zone: "Hand"}],
       targetingGroups: [],
       effects: [{type: "Summon this"}]
     }, {
-      trigger: {type: "This moves", to: "Field"},
-      mandatory: true,
-      reactor: false,
+      style: {type: "Trigger", mandatory: true, trigger: {type: "This moves", to: "Field"}},
       targetingGroups: [],
       effects: [{type: "Send this to", to: "Hand"}]
     }
@@ -67,22 +59,16 @@ const roundabout: CardDefinition = {
   ex: false,
   abilities: [
     {
-      trigger: {type: "Activated"},
-      mandatory: false,
-      reactor: false,
+      style: {type: "Activated"},
       conditions: [{type: "In zone", zone: "Hand"}],
       targetingGroups: [],
       effects: [{type: "Summon this"}]
     }, {
-      trigger: {type: "This moves", to: "Field"},
-      mandatory: true,
-      reactor: false,
+      style: {type: "Trigger", mandatory: true, trigger: {type: "This moves", to: "Field"}},
       targetingGroups: [],
       effects: [{type: "Send this to", to: "GY"}]
     }, {
-      trigger: {type: "This moves", to: "GY"},
-      mandatory: true,
-      reactor: false,
+      style: {type: "Trigger", mandatory: true, trigger: {type: "This moves", to: "GY"}},
       targetingGroups: [],
       effects: [{type: "Send this to", to: "Hand"}]
     }
@@ -97,16 +83,12 @@ const springish: CardDefinition = {
   ex: false,
   abilities: [
     {
-      trigger: {type: "Activated"},
-      mandatory: false,
-      reactor: false,
+      style: {type: "Activated"},
       conditions: [{type: "In zone", zone: "Hand"}],
       targetingGroups: [],
       effects: [{type: "Summon this"}]
     }, {
-      trigger: {type: "This moves", to: "Field"},
-      mandatory: false,
-      reactor: false,
+      style: {type: "Trigger", mandatory: false, trigger: {type: "This moves", to: "Field"}},
       targetingGroups: [],
       effects: [{type: "Send this to", to: "Hand"}]
     }
@@ -120,9 +102,7 @@ const boardwipe: CardDefinition = {
   cardType: "Vision",
   ex: false,
   abilities: [{
-    trigger: {type: "Activated"},
-    mandatory: false,
-    reactor: false,
+    style: {type: "Activated"},
     conditions: [{type: "In zone", zone: "Hand"}],
     targetingGroups: [],
     effects: [{type: "Send all to GY"}, {type: "Send this to", to: "GY"}]
@@ -136,9 +116,7 @@ const basketball: CardDefinition = {
   cardType: "Esper",
   ex: false,
   abilities: [{
-    trigger: {type: "Activated"},
-    mandatory: false,
-    reactor: false,
+    style: {type: "Activated"},
     conditions: [{type: "In zone", zone: "Hand"}],
     targetingGroups: [],
     effects: [
@@ -158,9 +136,7 @@ const reviver: CardDefinition = {
   cardType: "Esper",
   ex: false,
   abilities: [{
-    trigger: {type: "This moves", to: "GY"},
-    mandatory: true,
-    reactor: false,
+    style: {type: "Trigger", mandatory: true, trigger: {type: "This moves", to: "GY"}},
     targetingGroups: [],
     effects: [{type: "Send this to", to: "Field"}]
   }]
@@ -173,9 +149,7 @@ const revivish: CardDefinition = {
   cardType: "Esper",
   ex: false,
   abilities: [{
-    trigger: {type: "This moves", to: "GY"},
-    mandatory: false,
-    reactor: false,
+    style: {type: "Trigger", mandatory: false, trigger: {type: "This moves", to: "GY"}},
     targetingGroups: [],
     effects: [{type: "Send this to", to: "Field"}]
   }]

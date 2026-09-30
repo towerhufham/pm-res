@@ -186,7 +186,7 @@ export class GameState {
   }
 
   canActivateAbility(ac: AbilityContext): boolean {
-    if (ac.ability.trigger.type !== "Activated") return false
+    if (ac.ability.style.type !== "Activated") return false
     //todo hopt
     if (ac.ability.conditions) {
       for (const cond of ac.ability.conditions) {
@@ -225,9 +225,9 @@ export class GameState {
     for (const atom of atoms) {
       for (const card of this.cards) {
         for (const ability of card.abilities) {
-          if (ability.trigger.type === "Activated") continue
-          else if (ability.trigger.type === "This moves") {
-            if (atom.type === "Move" && atom.card === card && atom.to === ability.trigger.to) {
+          if (ability.style.type === "Activated") continue
+          else if (ability.style.trigger.type === "This moves") {
+            if (atom.type === "Move" && atom.card === card && atom.to === ability.style.trigger.to) {
               triggerable.push({player: card.controlledBy, card, ability})
             }
           }
@@ -363,9 +363,7 @@ export type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
   | { type: "In Zone", zone: Zone }
 
 export type Ability = {
-  trigger: Trigger
-  mandatory: boolean
-  reactor: boolean
+  style: {type: "Activated"} | {type: "Trigger", mandatory: boolean, trigger: Trigger}
   conditions?: Condition[]
   targetingGroups: TargetingGroup[]
   effects: Effect[]

@@ -93,7 +93,8 @@ export class Chain {
       this.tryOrderingTriggers()
     } else if (
       priorityTriggers.length === 1 
-      && priorityTriggers[0]!.ability.mandatory
+      && priorityTriggers[0]!.ability.style.type === "Trigger"
+      && priorityTriggers[0]!.ability.style.mandatory
       && priorityTriggers[0]!.ability.targetingGroups.length === 0
     ) {
       //this very specific case also has nothing to do
