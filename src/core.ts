@@ -103,22 +103,21 @@ export class GameState {
     return (player >= this.players.length - 1) ? 0 : player + 1
   }
 
-  buildEffectAtoms(ac: AbilityContext): EffectAtom[] {
+  buildEffectAtoms(link: ChainLink): EffectAtom[] {
     //todo check to make sure the targets in ac are valid
     const atoms: EffectAtom[] = []
-    for (const eff of ac.ability.effects) {
+    for (const eff of link.ability.effects) {
       if (eff.type === "Summon this") {
-        atoms.push({type: "Move", ac, card: ac.card, moveName: "Summoned", to: "Field"})
+        atoms.push({type: "Move", link, card: link.card, moveName: "Summoned", to: "Field"})
       } else if (eff.type === "Send this to") {
-        atoms.push({type: "Move", ac, card: ac.card, to: eff.to})
+        atoms.push({type: "Move", link, card: link.card, to: eff.to})
       } else if (eff.type === "Sacrifice this") {
-        atoms.push({type: "Move", ac, card: ac.card, moveName: "Sacrificed", to: "GY"})
+        atoms.push({type: "Move", link, card: link.card, moveName: "Sacrificed", to: "GY"})
       } else if (eff.type === "Send targets to") {
-        // if (!ac.targets) throw new RulesError("trying to 'send target to' with no finalized targets")
-        const targets = ac.targets![eff.tag]
+        const targets = link.targets![eff.tag]
         if (!targets) throw new RulesError("no targets for tag", eff.tag)
         for (const target of targets) {
-          atoms.push({type: "Move", ac, card: target, to: eff.to})
+          atoms.push({type: "Move", link, card: target, to: eff.to})
         }
       } else if (eff.type === "Send all to GY") {
         let allOnField: Card[] = []
@@ -126,7 +125,7 @@ export class GameState {
           allOnField = [...allOnField, ...this.cardsInZone(i, "Field")]
         }
         for (const card of allOnField) {
-          atoms.push({type: "Move", ac, card, to: "GY"})
+          atoms.push({type: "Move", link, card, to: "GY"})
         }
       } else {
         throw new RulesError("unknown effect type in eff", eff)
@@ -213,14 +212,11 @@ export class GameState {
     return found
   }
 
-  startActivation(ac: AbilityContext): void {
-    if (!this.canActivateAbility(ac)) {
-      throw new RulesError("trying to activate non-activatable ability", ac)
+  startActivation(link: ChainLink): void {
+    if (!this.canActivateAbility(link)) {
+      throw new RulesError("trying to activate non-activatable ability", link)
     }
-    //todo for now im assuming frontend will ensure targets are put in ac
-    //my logic is that it will *never* be unexpected to have to pick targets,
-    //the server doesn't need to inform us
-    this.chain = new Chain(this, ac)
+    this.chain = new Chain(this, link)
   }
 
   checkForTriggers(atoms: EffectAtom[]): AbilityContext[] {
@@ -335,8 +331,8 @@ export type TargetingGroup = {type: "Single Target", criteria: CardCriteria[], t
 
 export type FinalizedTargets = Record<string, Card[]>
 
-export type EffectAtom = {ac: AbilityContext, type: "Move", moveName?: MoveName, card: Card, to: Zone} //todo should from be here?
-  | {ac: AbilityContext, type: "Target", card: Card, tag: string}
+export type EffectAtom = {link: ChainLink, type: "Move", moveName?: MoveName, card: Card, to: Zone} //todo should from be here?
+  | {link: ChainLink, type: "Target", card: Card, tag: string}
 
 export type Trigger = {type: "Activated"} | {type: "This moves", from?: Zone, to?: Zone}
 
@@ -379,7 +375,8 @@ export type Ability = {
 // type TargetPayload = {type: "Single Card", target: Card}
 //   | {type: "Multi Card", targets: Card[]}
 
-export type AbilityContext = {player: number, card: Card, ability: Ability, targets?: FinalizedTargets}
+export type AbilityContext = {player: number, card: Card, ability: Ability}
+export type ChainLink = AbilityContext & {targets: FinalizedTargets}
 
 // --------------- test --------------- //
 
