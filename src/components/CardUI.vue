@@ -2,11 +2,16 @@
 import { computed } from 'vue'
 import type { Card } from '@/core'
 
-const props = defineProps<{card: Card, selectable: boolean}>()
+const props = defineProps<{
+  card: Card, 
+  selectable?: boolean,
+  selected?: boolean
+}>()
 
 const extraClasses = computed(() => {
   let classes = ""
   if (props.selectable) classes += "hover:border-blue-500 cursor-pointer"
+  if (props.selected) classes += "border-yellow-600 cursor-pointer"
   return classes
 })
 </script>
