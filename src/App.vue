@@ -60,10 +60,6 @@ type Modal = {type: "Ability", card: Card}
 
 const modal = ref<Modal|null>(null)
 
-const log = () => {
-  console.dir(game)
-}
-
 const updatePlayerState = () => {
   state.value = game.getPlayerState(us)
   const waitingFor = state.value.waitingFor
@@ -150,7 +146,6 @@ const selectableCards = (): Card[] => {
 <template>
   <div class="h-screen flex flex-col justify-between items-center">
     <div>
-      <p @click="log" class="cursor-pointer">Click to log game data</p>
       <p>Waiting for: {{ state.waitingFor.type }}</p>
       <p>Chain: {{ game.chain ? game.chain.state : "No chain" }}</p>
     </div>
