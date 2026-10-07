@@ -8,6 +8,13 @@ import type { ChainLink, AbilityContext, GameState } from "./core"
 //   type: ""
 // }
 
+
+//todo new thought- no need to pool triggers. triggers can simply
+//add to the pending queue in the order they get triggered. if
+//multiple happen at once (triggering off the same link resolution)
+//then we order them *then* using the current rules (APNAP, player-ordered in batches)
+//this makes it more intuitive- but it *does* require tabletop players to
+//remember the order! so this might be overturned...
 export class Chain {
   game: GameState
   state: "Building" | "Resolving" | "Ordering triggers" | "Completed"
