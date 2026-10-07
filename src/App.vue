@@ -147,7 +147,7 @@ const passPriority = () => {
   }
 }
 
-const glowingCards = (): Card[] => {
+const selectableCards = (): Card[] => {
   if (state.value.type === "Open") {
     return state.value.activatable
   } else {
@@ -166,21 +166,21 @@ const glowingCards = (): Card[] => {
 
     <section class="flex gap-1">
       <CardUI v-for="card of game.cardsInZone(us, 'Field')" 
-        :card="card" :selectable="glowingCards().includes(card)" 
+        :card="card" :selectable="selectableCards().includes(card)" 
         class="w-32 h-48 hover:-translate-y-4" @click="cardClick(card)"
         />
     </section>
 
     <section class="flex gap-1">
       <CardUI v-for="card of game.cardsInZone(us, 'Hand')" 
-        :card="card" :selectable="glowingCards().includes(card)" 
+        :card="card" :selectable="selectableCards().includes(card)" 
         class="w-32 h-48 hover:-translate-y-4" @click="cardClick(card)"
         />
     </section>
 
     <section class="absolute right-0 top-0 flex flex-col">
       <CardUI v-for="card of game.cardsInZone(us, 'GY')" 
-        :card="card" :selectable="glowingCards().includes(card)" 
+        :card="card" :selectable="selectableCards().includes(card)" 
         class="w-32 hover:-translate-x-4" @click="cardClick(card)"
         />
     </section>
