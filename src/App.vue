@@ -79,6 +79,14 @@ type UIState = {
 
 const state = ref<UIState>({type: "Waiting"})
 
+//todo maybe these functions should just call methods of GameState?
+//and then GameState can interpret the clicks based on whatever state
+//its in. we still need UIState for the sake of modals (and animations)
+//but that makes a little more sense. actually, maybe GameState can
+//create entire PlayerUIState types and send them here directly, including
+//what we're waiting on, the reason why some cards aren't playable (shown on hover)
+//lists of which abilities need ordering/confirming/etc. that seems really
+//logical since i plan on splitting GameState into a bunch of files like chain.ts
 const cardClick = (card: Card) => {
   if (state.value.type === "Open") {
     state.value = {type: "Ability", card}
