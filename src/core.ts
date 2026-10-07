@@ -212,6 +212,7 @@ export class GameState {
     return found
   }
 
+  //todo (minor) this method can be overloaded to take ac + targets as well
   startActivation(link: ChainLink): void {
     if (!this.canActivateAbility(link)) {
       throw new RulesError("trying to activate non-activatable ability", link)
@@ -235,6 +236,70 @@ export class GameState {
       }
     }
     return triggerable
+  }
+
+  getZoneCounts(): ZoneCounts {
+    const counts: ZoneCounts = []
+    for (let i = 0; i < this.players.length; i++) {
+      const cards = this.cards.filter(c => c.controlledBy === i)
+      counts.push({
+        "Deck": cards.filter(c => c.zone === "Deck").length,
+        "Deletion": cards.filter(c => c.zone === "Deletion").length,
+        "EX": cards.filter(c => c.zone === "EX").length,
+        "Field": cards.filter(c => c.zone === "Field").length,
+        "GY": cards.filter(c => c.zone === "GY").length,
+        "Hand": cards.filter(c => c.zone === "Hand").length,
+        "Suspense": cards.filter(c => c.zone === "Suspense").length,
+        "World": cards.filter(c => c.zone === "World").length
+      })
+    }
+    return counts
+  }
+
+  getVisibleCards(player: number): Card[] {
+    const ours = this.cards.filter(c => c.ownedBy === player)
+    const publicZones: Zone[] = ["Field", "GY", "World", "Deletion", "Suspense"]
+    const theirs = this.cards.filter(c => c.ownedBy !== player).filter(c => publicZones.includes(c.zone))
+    return [...ours, ...theirs]
+  }
+
+  getWaitingFor(player: number): WaitingFor {
+    //when there's no current chain
+    if (!this.chain) {
+      if (this.turnPlayer === player) {
+        return {type: "Open", options: this.getAllActivatableAbilities(player)}
+      } else {
+        return {type: "Another player", player: this.turnPlayer}
+      }
+    } else {
+      //when there is a chain it gets tricky
+      if (this.chain.playerWithPriority === player) {
+        if (this.chain.state === "Building") {
+          //todo how get these?
+          return {type: "Response window", options: [], links: this.chain.links}
+        } else if (this.chain.state === "Ordering triggers") {
+          //todo how get these too?
+          return {type: "Triggers", triggers: [], currentLinks: this.chain.links, triggerPool: this.chain.pendingTriggerPool}
+        } else {
+          //i think this might be an unreachable state? unsure
+          throw new RulesError("can't figure out playerstate because chain state is", this.chain.state)
+        }
+      } else {
+        return {type: "Another player", player: this.chain.playerWithPriority}
+      }
+    }
+  }
+
+  getPlayerState(player: number): PlayerState {
+    return {
+      visibleCards: this.getVisibleCards(player),
+      zoneCounts: this.getZoneCounts(),
+      waitingFor: this.getWaitingFor(player),
+      playerList: [...Array(this.players.length).keys()], //todo want more info than just number[]
+      log: this.log,
+      round: this.round,
+      turnPlayer: this.turnPlayer
+    }
   }
 }
 
@@ -376,47 +441,35 @@ export type Ability = {
 export type AbilityContext = {player: number, card: Card, ability: Ability}
 export type ChainLink = AbilityContext & {targets: FinalizedTargets}
 
-// --------------- test --------------- //
 
-// const d = new CardDefinition(
-//   "TEST-001",
-//   "Pythagorean Angel",
-//   ["Yellow", "Teal"],
-//   "Esper",
-//   false,
-//   [
-//     {
-//       trigger: {type: "Activated"},
-//       mandatory: false,
-//       reactor: false,
-//       conditions: [{type: "In zone", zone: "Hand"}],
-//       targetingGroups: [],
-//       effects: [{type: "Summon this"}]
-//     }, {
-//       trigger: {type: "Activated"},
-//       mandatory: false,
-//       reactor: false,
-//       conditions: [{type: "In zone", zone: "Field"}],
-//       targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: ""}],
-//       effects: [{type: "Send targets to", to: "GY", tag: ""}]
-//     }
-//   ]
-// )
-// const list = new Decklist(Array(50).fill(d))
-// const game = new GameState([list])
-// console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
-// console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
-// game.draw(0)
-// console.log(`${game.cardsInZone(0, "Hand").length} in player 0's hand, ${game.cardsInZone(0, "Deck").length} in deck`)
-// console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
-// const ac = game.getAllActivatableAbilities(0)[0]!
-// game.startActivation(ac)
-// console.log(`${game.cardsInZone(0, "Field").length} on field`)
-// console.log(`${game.getAllActivatableAbilities(0).length} activatable abilities`)
-// const onfield = game.cardsInZone(0, "Field")[0]!
-// game.startActivation({player: 0, card: onfield, ability: onfield.abilities[1]!})
-// console.log(`waiting on: ${game.waitingOn.type}`)
-// game.supplyTargets({"": [onfield]})
-// console.log(`${game.cardsInZone(0, "Field").length} on field`)
-// console.log(`waiting on: ${game.waitingOn.type}`)
-// throw new RulesError("testing!", onfield)
+//--------------- Interface ---------------//
+
+export type WaitingFor = {
+  type: "Another player"
+  player: number
+} | {
+  type: "Open"
+  options: AbilityContext[]
+} | {
+  type: "Response window"
+  options: AbilityContext[]
+  links: ChainLink[]
+} | {
+  type: "Triggers"
+  triggers: AbilityContext[]
+  currentLinks: ChainLink[]
+  //this will be triggerLinks: ChainLink[] once we order triggers as they come instead of in batches
+  triggerPool: AbilityContext[]
+}
+
+type ZoneCounts = Record<Zone, number>[]
+
+export type PlayerState = {
+  visibleCards: Card[]
+  zoneCounts: ZoneCounts
+  waitingFor: WaitingFor
+  playerList: number[] //todo this will have names and metadata stuffs
+  log: LogEntry[]
+  round: number
+  turnPlayer: number
+}

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { reactive, ref, onMounted, computed } from 'vue';
+import { reactive, ref } from 'vue';
 import { GameState } from './core';
-import type { Card, CardDefinition, AbilityContext } from './core';
+import type { Card, CardDefinition, AbilityContext, PlayerState, ChainLink } from './core';
 import CardUI from './components/CardUI.vue';
 import Modal from './components/Modal.vue';
 
@@ -48,84 +48,72 @@ const bomb: CardDefinition = {
 
 const us = 0 //our player, todo other views
 
+//this game object sjould be hidden from the client, so the only allowed usage
+//of it for now is this initialization and calling its methods! no peeking in
 const game = reactive(new GameState([{main: [bomb, springish], ex: [], worlds: []}]))
+const state = ref<PlayerState>(game.getPlayerState(us)) //todo use updatePlayerState() in onMounted
 
-onMounted(() => {
-  state.value = {
-    type: "Open",
-    activatable: game.getAllActivatableAbilities(us).map(ac => ac.card)
-  }
-})
+type Modal = {type: "Ability", card: Card} 
+  | {type: "Targeting", ac: AbilityContext, optionSets: Record<string, Card[]>, selected: Record<string, Card[]>}
+  | {type: "Response window", options: AbilityContext[], links: ChainLink[]}
+  | {type: "Triggers"}
+
+const modal = ref<Modal|null>(null)
 
 const log = () => {
   console.dir(game)
 }
 
-type UIState = {
-  type: "Waiting"
-} | {
-  type: "Open",
-  activatable: Card[]
-} | {
-  type: "Ability",
-  card: Card
-} | {
-  type: "Targeting",
-  ac: AbilityContext
-  optionSets: Record<string, Card[]>
-  selected: Record<string, Card[]>
-} | {
-  type: "Priority"
+const updatePlayerState = () => {
+  state.value = game.getPlayerState(us)
+  const waitingFor = state.value.waitingFor
+  if (waitingFor.type === "Open" || waitingFor.type === "Another player") {
+    modal.value = null
+  } else if (waitingFor.type === "Response window") {
+    //todo this is an exact copy of the object, maybe we only need one of them?
+    //front has some additional concerns (like targeting) but that can be its own thing
+    modal.value = {type: "Response window", options: waitingFor.options, links: waitingFor.links}
+  } else if (waitingFor.type === "Triggers") {
+    //todo make this real
+    modal.value = {type: "Triggers"}
+  }
 }
 
-const state = ref<UIState>({type: "Waiting"})
-
-//todo maybe these functions should just call methods of GameState?
-//and then GameState can interpret the clicks based on whatever state
-//its in. we still need UIState for the sake of modals (and animations)
-//but that makes a little more sense. actually, maybe GameState can
-//create entire PlayerUIState types and send them here directly, including
-//what we're waiting on, the reason why some cards aren't playable (shown on hover)
-//lists of which abilities need ordering/confirming/etc. that seems really
-//logical since i plan on splitting GameState into a bunch of files like chain.ts
 const cardClick = (card: Card) => {
-  if (state.value.type === "Open") {
-    state.value = {type: "Ability", card}
+  if (state.value.waitingFor.type === "Open") {
+    modal.value = {type: "Ability", card}
   }
 }
 
 const abilityClick = (ac: AbilityContext) => {
-  if (state.value.type === "Ability") {
-    if (ac.ability.targetingGroups.length === 0) {
-      game.startActivation({player: us, card: ac.card, ability: ac.ability, targets: {}})
-      state.value = {type: "Priority"} //todo
-    } else {
-      let optionSets: Record<string, Card[]> = {}
-      for (const group of ac.ability.targetingGroups) {
-        optionSets[group.tag] = game.getAllByCriteria(us, group.criteria)
-      }
-      state.value = {type: "Targeting", ac, optionSets, selected: {}}
+  if (ac.ability.targetingGroups.length === 0) {
+    game.startActivation({player: us, card: ac.card, ability: ac.ability, targets: {}})
+    updatePlayerState()
+  } else {
+    let optionSets: Record<string, Card[]> = {}
+    for (const group of ac.ability.targetingGroups) {
+      optionSets[group.tag] = game.getAllByCriteria(us, group.criteria)
     }
+    modal.value = {type: "Targeting", ac, optionSets, selected: {}}
   }
 }
 
 const targetClick = (tag: string, card: Card) => {
-  if (state.value.type === "Targeting") {
-    if (state.value.selected[tag]!.includes(card)) {
-      state.value = {
-        ...state.value,
-        selected: {
-          ...state.value.selected,
-          [tag]: state.value.selected[tag]!.filter(c => c !== card)
-        }
+  if (modal.value?.type !== "Targeting") return
+  if (modal.value.selected[tag]!.includes(card)) {
+    modal.value = {
+      ...modal.value,
+      selected: {
+        ...modal.value.selected,
+        [tag]: modal.value.selected[tag]!.filter(c => c !== card)
       }
-    } else {
-      state.value = {
-        ...state.value,
-        selected: {
-          ...state.value.selected,
-          [tag]: [...state.value.selected[tag]!, card]
-        }
+    }
+  } else {
+    modal.value = {
+      ...modal.value,
+      selected: {
+        ...modal.value.selected,
+        [tag]: [...modal.value.selected[tag]!, card]
       }
     }
   }
@@ -133,23 +121,26 @@ const targetClick = (tag: string, card: Card) => {
 
 const submitTargets = () => {
   //todo validation goes... somewhere
-  if (state.value.type === "Targeting") {
-    game.startActivation({player: us, card: state.value.ac.card, ability: state.value.ac.ability, targets: state.value.selected})
-    //todo
-    state.value = {type: "Priority"}
+  if (modal.value?.type !== "Targeting") return
+  const link: ChainLink = {
+    player: us, 
+    card: modal.value.ac.card, 
+    ability: modal.value.ac.ability, 
+    targets: modal.value.selected
   }
+  game.startActivation(link)
+  updatePlayerState()
 }
 
 const passPriority = () => {
-  if (state.value.type === "Priority") {
-    game.chain!.playerPasses()
-    state.value = {type: "Waiting"} //todo
-  }
+  if (!game.chain) return
+  game.chain.playerPasses()
+  updatePlayerState()
 }
 
 const selectableCards = (): Card[] => {
-  if (state.value.type === "Open") {
-    return state.value.activatable
+  if (state.value.waitingFor.type === "Open") {
+    return state.value.waitingFor.options.map(ac => ac.card)
   } else {
     return []
   }
@@ -160,7 +151,7 @@ const selectableCards = (): Card[] => {
   <div class="h-screen flex flex-col justify-between items-center">
     <div>
       <p @click="log" class="cursor-pointer">Click to log game data</p>
-      <p>State: {{ state.type }}</p>
+      <p>Waiting for: {{ state.waitingFor.type }}</p>
       <p>Chain: {{ game.chain ? game.chain.state : "No chain" }}</p>
     </div>
 
@@ -186,29 +177,33 @@ const selectableCards = (): Card[] => {
     </section>
 
     <div class="absolute bottom-0 right-0 w-32 h-48 bg-gray-400 flex flex-col justify-center items-center">
-      <p @click="() => {game.draw(us)}">{{game.cardsInZone(us, "Deck").length}}</p>
+      <p @click="() => {game.draw(us)}">{{state.zoneCounts[us]!["Deck"]}}</p>
     </div>
 
-    <Modal v-if="state.type === 'Ability'">
+    <Modal v-if="modal?.type === 'Ability'">
       <p>Choose ability:</p>
-      <div v-for="ability of state.card.abilities">
-        <p v-if="game.canActivateAbility({player: us, card: state.card, ability})" class="border-2 p-1 cursor-pointer transition-all hover:border-blue-500" @click="abilityClick({player: us, card: state.card, ability})">◆{{ability.style.type}}</p>
+      <div v-for="ability of modal.card.abilities">
+        <p v-if="game.canActivateAbility({player: us, card: modal.card, ability})" class="border-2 p-1 cursor-pointer transition-all hover:border-blue-500" @click="abilityClick({player: us, card: modal.card, ability})">◆{{ability.style.type}}</p>
       </div>
     </Modal>
 
-    <Modal v-if="state.type === 'Targeting'">
+    <Modal v-if="modal?.type === 'Targeting'">
       <p>Choose target(s):</p>
-      <div v-for="[tag, options] of Object.entries(state.optionSets)" class="border-2 p-1">
+      <div v-for="[tag, options] of Object.entries(modal.optionSets)" class="border-2 p-1">
         <p>Tag "{{ tag }}":</p>
         <div class="flex gap-2 justify-center items-center flex-wrap">
-          <CardUI v-for="card of options" :card :selectable="true" :selected="state.selected[tag]!.includes(card)" @click="targetClick(tag, card)"/>
+          <CardUI v-for="card of options" :card :selectable="true" :selected="modal.selected[tag]!.includes(card)" @click="targetClick(tag, card)"/>
         </div>
       </div>
       <p class="border p-1 cursor-pointer" @click="submitTargets">Submit</p>
     </Modal>
 
-    <Modal v-if="state.type === 'Priority'">
+    <Modal v-if="modal?.type === 'Response window'">
       <p class="border p-1 cursor-pointer" @click="passPriority">Pass priority</p>
+    </Modal>
+
+    <Modal v-if="modal?.type === 'Triggers'">
+      <p>comign soon :3</p>
     </Modal>
   </div>
 </template>
