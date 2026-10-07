@@ -3,6 +3,7 @@ import { reactive, ref, onMounted, computed } from 'vue';
 import { GameState } from './core';
 import type { Card, CardDefinition, AbilityContext } from './core';
 import CardUI from './components/CardUI.vue';
+import Modal from './components/Modal.vue';
 
 const springish: CardDefinition = {
   identifier: "TEST-004",
@@ -188,32 +189,26 @@ const glowingCards = (): Card[] => {
       <p @click="() => {game.draw(us)}">{{game.cardsInZone(us, "Deck").length}}</p>
     </div>
 
-    <div v-if="state.type === 'Ability'" class="absolute h-screen w-screen flex justify-center items-center bg-[#00000022]">
-      <div class="max-w-1/2 max-h-1/2 bg-white flex flex-col justify-center items-center gap-2 p-4">
-        <p>Choose ability:</p>
-        <div v-for="ability of state.card.abilities">
-          <p v-if="game.canActivateAbility({player: us, card: state.card, ability})" class="border-2 p-1 cursor-pointer transition-all hover:border-blue-500" @click="abilityClick({player: us, card: state.card, ability})">◆{{ability.style.type}}</p>
+    <Modal v-if="state.type === 'Ability'">
+      <p>Choose ability:</p>
+      <div v-for="ability of state.card.abilities">
+        <p v-if="game.canActivateAbility({player: us, card: state.card, ability})" class="border-2 p-1 cursor-pointer transition-all hover:border-blue-500" @click="abilityClick({player: us, card: state.card, ability})">◆{{ability.style.type}}</p>
+      </div>
+    </Modal>
+
+    <Modal v-if="state.type === 'Targeting'">
+      <p>Choose target(s):</p>
+      <div v-for="[tag, options] of Object.entries(state.optionSets)" class="border-2 p-1">
+        <p>Tag "{{ tag }}":</p>
+        <div class="flex gap-2 justify-center items-center flex-wrap">
+          <CardUI v-for="card of options" :card :selectable="true" :selected="state.selected[tag]!.includes(card)" @click="targetClick(tag, card)"/>
         </div>
       </div>
-    </div>
+      <p class="border p-1 cursor-pointer" @click="submitTargets">Submit</p>
+    </Modal>
 
-    <div v-if="state.type === 'Targeting'" class="absolute h-screen w-screen flex justify-center items-center bg-[#00000022]">
-      <div class="max-w-1/2 max-h-1/2 bg-white flex flex-col justify-center items-center gap-2 p-4">
-        <p>Choose target(s):</p>
-        <div v-for="[tag, options] of Object.entries(state.optionSets)" class="border-2 p-1">
-          <p>Tag "{{ tag }}":</p>
-          <div class="flex gap-2 justify-center items-center flex-wrap">
-            <CardUI v-for="card of options" :card :selectable="true" :selected="state.selected[tag]!.includes(card)" @click="targetClick(tag, card)"/>
-          </div>
-        </div>
-        <p class="border p-1 cursor-pointer" @click="submitTargets">Submit</p>
-      </div>
-    </div>
-
-    <div v-if="state.type === 'Priority'" class="absolute h-screen w-screen flex justify-center items-center bg-[#00000022]">
-      <div class="max-w-1/2 max-h-1/2 bg-white flex flex-col justify-center items-center gap-2 p-4">
-        <p class="border p-1 cursor-pointer" @click="passPriority">Pass priority</p>
-      </div>
-    </div>
+    <Modal v-if="state.type === 'Priority'">
+      <p class="border p-1 cursor-pointer" @click="passPriority">Pass priority</p>
+    </Modal>
   </div>
 </template>
