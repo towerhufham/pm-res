@@ -76,7 +76,7 @@ export const roundabout: CardDefinition = {
 
 export const springish: CardDefinition = {
   identifier: "TEST-004",
-  name: "Springy",
+  name: "Springish",
   colors: [],
   cardType: "Esper",
   ex: false,
