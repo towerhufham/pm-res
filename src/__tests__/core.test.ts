@@ -1,159 +1,16 @@
 import { expect, it } from "vitest"
 import { GameState } from "../core"
-import type { CardDefinition, Decklist } from "../core"
+import type { Decklist } from "../core"
+
+// --------------- Test Cards --------------- //
+
+import { bomb, springy, roundabout, springish, boardwipe, basketball, reviver, revivish } from "../cards";
 
 // --------------- Helpers --------------- //
 
 const emptyDecklist = (): Decklist => ({worlds: [], ex: [], main: []})
 const emptyGame = () => new GameState([{worlds: [], ex: [], main: []}])
 const nPlayerGame = (n: number) => new GameState(Array.from({length: n}, () => emptyDecklist()))
-
-// --------------- Test Cards --------------- //
-
-const bomb: CardDefinition = {
-  identifier: "TEST-001",
-  name: "Bomb",
-  colors: [],
-  cardType: "Esper",
-  ex: false,
-  abilities: [
-    {
-      style: {type: "Activated"},
-      conditions: [{type: "In zone", zone: "Hand"}],
-      targetingGroups: [],
-      effects: [{type: "Summon this"}]
-    }, {
-      style: {type: "Activated"},
-      conditions: [{type: "In zone", zone: "Field"}],
-      targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: ""}],
-      effects: [{type: "Send targets to", to: "GY", tag: ""}]
-    }
-  ]
-}
-
-const springy: CardDefinition = {
-  identifier: "TEST-002",
-  name: "Springy",
-  colors: [],
-  cardType: "Esper",
-  ex: false,
-  abilities: [
-    {
-      style: {type: "Activated"},
-      conditions: [{type: "In zone", zone: "Hand"}],
-      targetingGroups: [],
-      effects: [{type: "Summon this"}]
-    }, {
-      style: {type: "Trigger", mandatory: true, trigger: {type: "This moves", to: "Field"}},
-      targetingGroups: [],
-      effects: [{type: "Send this to", to: "Hand"}]
-    }
-  ]
-}
-
-const roundabout: CardDefinition = {
-  identifier: "TEST-003",
-  name: "Roundabout",
-  colors: [],
-  cardType: "Esper",
-  ex: false,
-  abilities: [
-    {
-      style: {type: "Activated"},
-      conditions: [{type: "In zone", zone: "Hand"}],
-      targetingGroups: [],
-      effects: [{type: "Summon this"}]
-    }, {
-      style: {type: "Trigger", mandatory: true, trigger: {type: "This moves", to: "Field"}},
-      targetingGroups: [],
-      effects: [{type: "Send this to", to: "GY"}]
-    }, {
-      style: {type: "Trigger", mandatory: true, trigger: {type: "This moves", to: "GY"}},
-      targetingGroups: [],
-      effects: [{type: "Send this to", to: "Hand"}]
-    }
-  ]
-}
-
-const springish: CardDefinition = {
-  identifier: "TEST-004",
-  name: "Springy",
-  colors: [],
-  cardType: "Esper",
-  ex: false,
-  abilities: [
-    {
-      style: {type: "Activated"},
-      conditions: [{type: "In zone", zone: "Hand"}],
-      targetingGroups: [],
-      effects: [{type: "Summon this"}]
-    }, {
-      style: {type: "Trigger", mandatory: false, trigger: {type: "This moves", to: "Field"}},
-      targetingGroups: [],
-      effects: [{type: "Send this to", to: "Hand"}]
-    }
-  ]
-}
-
-const boardwipe: CardDefinition = {
-  identifier: "TEST-005",
-  name: "Boardwipe",
-  colors: [],
-  cardType: "Vision",
-  ex: false,
-  abilities: [{
-    style: {type: "Activated"},
-    conditions: [{type: "In zone", zone: "Hand"}],
-    targetingGroups: [],
-    effects: [{type: "Send all to GY"}, {type: "Send this to", to: "GY"}]
-  }]
-}
-
-const basketball: CardDefinition = {
-  identifier: "TEST-006",
-  name: "Overinflated Basketball",
-  colors: ["Orange"],
-  cardType: "Esper",
-  ex: false,
-  abilities: [{
-    style: {type: "Activated"},
-    conditions: [{type: "In zone", zone: "Hand"}],
-    targetingGroups: [],
-    effects: [
-      {type: "Summon this"}, 
-      {type: "Send this to", to: "Hand"},
-      {type: "Summon this"},
-      {type: "Send this to", to: "Hand"},
-      {type: "Send this to", to: "GY"}
-    ]
-  }]
-}
-
-const reviver: CardDefinition = {
-  identifier: "TEST-007",
-  name: "Reviver",
-  colors: [],
-  cardType: "Esper",
-  ex: false,
-  abilities: [{
-    style: {type: "Trigger", mandatory: true, trigger: {type: "This moves", to: "GY"}},
-    targetingGroups: [],
-    effects: [{type: "Send this to", to: "Field"}]
-  }]
-}
-
-const revivish: CardDefinition = {
-  identifier: "TEST-007",
-  name: "Revivish",
-  colors: [],
-  cardType: "Esper",
-  ex: false,
-  abilities: [{
-    style: {type: "Trigger", mandatory: false, trigger: {type: "This moves", to: "GY"}},
-    targetingGroups: [],
-    effects: [{type: "Send this to", to: "Field"}]
-  }]
-}
 
 // --------------- Hit it, boys! --------------- //
 

@@ -1,50 +1,11 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
 import { GameState } from './core';
-import type { Card, CardDefinition, AbilityContext, PlayerState, ChainLink } from './core';
+import type { Card, AbilityContext, PlayerState, ChainLink } from './core';
 import CardUI from './components/CardUI.vue';
 import Modal from './components/Modal.vue';
 
-const springish: CardDefinition = {
-  identifier: "TEST-004",
-  name: "Springy",
-  colors: [],
-  cardType: "Esper",
-  ex: false,
-  abilities: [
-    {
-      style: {type: "Activated"},
-      conditions: [{type: "In zone", zone: "Hand"}],
-      targetingGroups: [],
-      effects: [{type: "Summon this"}]
-    }, {
-      style: {type: "Trigger", mandatory: false, trigger: {type: "This moves", to: "Field"}},
-      targetingGroups: [],
-      effects: [{type: "Send this to", to: "Hand"}]
-    }
-  ]
-}
-
-const bomb: CardDefinition = {
-  identifier: "TEST-001",
-  name: "Bomb",
-  colors: [],
-  cardType: "Esper",
-  ex: false,
-  abilities: [
-    {
-      style: {type: "Activated"},
-      conditions: [{type: "In zone", zone: "Hand"}],
-      targetingGroups: [],
-      effects: [{type: "Summon this"}]
-    }, {
-      style: {type: "Activated"},
-      conditions: [{type: "In zone", zone: "Field"}],
-      targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: ""}],
-      effects: [{type: "Send targets to", to: "GY", tag: ""}]
-    }
-  ]
-}
+import { bomb, springish } from "./cards";
 
 const us = 0 //our player, todo other views
 
@@ -178,7 +139,7 @@ const selectableCards = (): Card[] => {
     <Modal v-if="modal?.type === 'Ability'">
       <p>Choose ability:</p>
       <div v-for="ability of modal.card.abilities">
-        <p v-if="game.canActivateAbility({player: us, card: modal.card, ability})" class="border-2 p-1 cursor-pointer transition-all hover:border-blue-500" @click="abilityClick({player: us, card: modal.card, ability})">◆{{ability.style.type}}</p>
+        <p v-if="game.canActivateAbility({player: us, card: modal.card, ability})" class="border-2 p-1 cursor-pointer transition-all hover:border-blue-500" @click="abilityClick({player: us, card: modal.card, ability})">◆{{ability.text}}</p>
       </div>
     </Modal>
 

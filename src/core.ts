@@ -432,6 +432,7 @@ export type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
   | { type: "In Zone", zone: Zone }
 
 export type Ability = {
+  text: string
   style: {type: "Activated"} | {type: "Trigger", mandatory: boolean, trigger: Trigger}
   conditions?: Condition[]
   targetingGroups: TargetingGroup[]
