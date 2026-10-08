@@ -192,7 +192,7 @@ it("activates and applies abilities", () => {
   game.startActivation({player: 0, card, ability: card.abilities[0]!, targets: {}})
   game.chain?.playerPasses()
   expect(card.zone).toBe("Field")
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
 })
 
 it("handles multi-step abilities", () => {
@@ -202,7 +202,7 @@ it("handles multi-step abilities", () => {
   game.startActivation({player: 0, card, ability: card.abilities[0]!, targets: {}})
   game.chain?.playerPasses()
   expect(card.zone).toBe("GY")
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
 })
 
 it("can take targets with abilities", () => {
@@ -212,7 +212,7 @@ it("can take targets with abilities", () => {
   game.startActivation({player: 0, card, ability: card.abilities[1]!, targets: {"": [card]}})
   game.chain?.playerPasses()
   expect(card.zone).toBe("GY")
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
 })
 
 it("handles mandatory triggers", () => {
@@ -232,7 +232,7 @@ it("handles mandatory triggers", () => {
   game.chain?.playerPasses()
   //should be resolved now
   expect(card.zone).toBe("Hand")
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
 })
 
 it("handles successive triggers", () => {
@@ -258,7 +258,7 @@ it("handles successive triggers", () => {
   game.chain?.playerPasses()
   //should be resolved now
   expect(card.zone).toBe("Hand")
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
 })
 
 it("can accept optional triggers", () => {
@@ -282,7 +282,7 @@ it("can accept optional triggers", () => {
   game.chain?.playerPasses()
   //should be resolved now
   expect(card.zone).toBe("Hand")
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
 })
 
 it("can reject optional triggers", () => {
@@ -306,7 +306,7 @@ it("can reject optional triggers", () => {
   game.chain?.playerPasses()
   //should be resolved now
   expect(card.zone).toBe("Field")
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
 })
 
 it("can handle multiple player boards", () => {
@@ -333,7 +333,7 @@ it("can handle multiplayer effects", () => {
   game.chain?.playerPasses()
   expect(game.chain?.state).toBe("Building")
   game.chain?.playerPasses()
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
   //results
   expect(game.cardsInZone(0, "GY").length).toBe(2) //both bomb and the wipe
   expect(game.cardsInZone(1, "GY").length).toBe(1) //just the bomb
@@ -363,7 +363,7 @@ it("can handle one mandatory trigger per player without waiting", () => {
   expect(game.chain?.state).toBe("Building")
   game.chain?.playerPasses()
   //results
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
   expect(game.cardsInZone(0, "Field").length).toBe(1)
   expect(game.cardsInZone(0, "GY").length).toBe(1)
   expect(game.cardsInZone(1, "Field").length).toBe(1)
@@ -391,7 +391,7 @@ it("can take an order for multiple mandatory triggers for one player", () => {
   game.chain?.playerBatchTriggers(0, accepted)
   expect(game.chain?.state).toBe("Building")
   game.chain?.playerPasses()
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
   expect(game.cardsInZone(0, "Field").length).toBe(3)
   expect(game.cardsInZone(0, "GY").length).toBe(1)
 })
@@ -418,7 +418,7 @@ it("can take an ordered subset for multiple optional triggers for one player", (
   game.chain?.playerBatchTriggers(0, accepted)
   expect(game.chain?.state).toBe("Building")
   game.chain?.playerPasses()
-  expect(game.chain?.state).toBe("Completed")
+  expect(game.chain).toBeNull()
   expect(game.cardsInZone(0, "Field").length).toBe(2)
   expect(game.cardsInZone(0, "GY").length).toBe(2)
 })

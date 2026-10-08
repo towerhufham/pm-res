@@ -17,7 +17,7 @@ import type { ChainLink, AbilityContext, GameState } from "./core"
 //remember the order! so this might be overturned...
 export class Chain {
   game: GameState
-  state: "Building" | "Resolving" | "Ordering triggers" | "Completed"
+  state: "Building" | "Resolving" | "Ordering triggers"
   links: ChainLink[]
   pendingTriggerPool: AbilityContext[]
   inOriginalChain: boolean
@@ -56,7 +56,8 @@ export class Chain {
       if (this.links.length > 0) {
         this.tryResolve()
       } else {
-        this.state = "Completed"
+        //todo is this correct, or could we have pending triggers here?
+        this.game.endChain()
       }
     }
   }
@@ -83,7 +84,7 @@ export class Chain {
       this.playerWithPriority = this.game.turnPlayer
       this.tryOrderingTriggers()
     } else {
-      this.state = "Completed"
+      this.game.endChain()
     }
   }
   

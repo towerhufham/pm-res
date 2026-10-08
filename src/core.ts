@@ -301,6 +301,10 @@ export class GameState {
       turnPlayer: this.turnPlayer
     }
   }
+
+  endChain(): void {
+    this.chain = null
+  }
 }
 
 export class Decklist {
