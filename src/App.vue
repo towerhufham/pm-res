@@ -115,21 +115,21 @@ const selectableCards = (): Card[] => {
       <CardUI v-for="card of game.cardsInZone(us, 'Field')" 
         :card="card" :selectable="selectableCards().includes(card)" 
         class="w-32 h-48 hover:-translate-y-4" @click="cardClick(card)"
-        />
+      />
     </section>
 
     <section class="flex gap-1">
       <CardUI v-for="card of game.cardsInZone(us, 'Hand')" 
         :card="card" :selectable="selectableCards().includes(card)" 
         class="w-32 h-48 hover:-translate-y-4" @click="cardClick(card)"
-        />
+      />
     </section>
 
     <section class="absolute right-0 top-0 flex flex-col">
       <CardUI v-for="card of game.cardsInZone(us, 'GY')" 
         :card="card" :selectable="selectableCards().includes(card)" 
         class="w-32 hover:-translate-x-4" @click="cardClick(card)"
-        />
+      />
     </section>
 
     <div class="absolute bottom-0 right-0 w-32 h-48 bg-gray-400 flex flex-col justify-center items-center">
@@ -139,7 +139,12 @@ const selectableCards = (): Card[] => {
     <Modal v-if="modal?.type === 'Ability'">
       <p>Choose ability:</p>
       <div v-for="ability of modal.card.abilities">
-        <p v-if="game.canActivateAbility({player: us, card: modal.card, ability})" class="border-2 p-1 cursor-pointer transition-all hover:border-blue-500" @click="abilityClick({player: us, card: modal.card, ability})">◆{{ability.text}}</p>
+        <p v-if="game.canActivateAbility({player: us, card: modal.card, ability})" 
+          class="border-2 p-1 cursor-pointer transition-all hover:border-blue-500" 
+          @click="abilityClick({player: us, card: modal.card, ability})"
+        >
+          ◆{{ability.text}}
+        </p>
       </div>
     </Modal>
 
@@ -148,7 +153,9 @@ const selectableCards = (): Card[] => {
       <div v-for="[tag, options] of Object.entries(modal.optionSets)" class="border-2 p-1">
         <p>Tag "{{ tag }}":</p>
         <div class="flex gap-2 justify-center items-center flex-wrap">
-          <CardUI v-for="card of options" :card :selectable="true" :selected="modal.selected[tag]!.includes(card)" @click="targetClick(tag, card)"/>
+          <CardUI v-for="card of options" :card :selectable="true" 
+            :selected="modal.selected[tag]!.includes(card)" @click="targetClick(tag, card)"
+          />
         </div>
       </div>
       <p class="border p-1 cursor-pointer" @click="submitTargets">Submit</p>
