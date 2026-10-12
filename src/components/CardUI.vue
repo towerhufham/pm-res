@@ -19,7 +19,7 @@ const extraClasses = computed(() => {
 <template>
   <article :class="`w-32 h-48 flex flex-col border-4 px-1 transition-all transform ${extraClasses}`">
     <div class="flex justify-between">
-      <h2>{{card.name}}</h2>
+      <h2>{{card.name}} (#{{ card.id }})</h2>
       <div class="flex">
         <p v-for="color of card.colors">{{color}}</p>
       </div>

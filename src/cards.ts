@@ -138,12 +138,20 @@ export const reviver: CardDefinition = {
   colors: [],
   cardType: "Esper",
   ex: false,
-  abilities: [{
-    text: "When this is sent to the GY, summon it.",
-    style: {type: "Trigger", mandatory: true, trigger: {type: "This moves", to: "GY"}},
-    targetingGroups: [],
-    effects: [{type: "Send this to", to: "Field"}]
-  }]
+  abilities: [
+    {
+      text: "Summon this from your hand.",
+      style: {type: "Activated"},
+      conditions: [{type: "In zone", zone: "Hand"}],
+      targetingGroups: [],
+      effects: [{type: "Summon this"}]
+    }, {
+      text: "When this is sent to the GY, summon it.",
+      style: {type: "Trigger", mandatory: true, trigger: {type: "This moves", to: "GY"}},
+      targetingGroups: [],
+      effects: [{type: "Send this to", to: "Field"}]
+    }
+  ]
 }
 
 export const revivish: CardDefinition = {
@@ -152,10 +160,18 @@ export const revivish: CardDefinition = {
   colors: [],
   cardType: "Esper",
   ex: false,
-  abilities: [{
-    text: "When this is sent to the GY, you may summon it.",
-    style: {type: "Trigger", mandatory: false, trigger: {type: "This moves", to: "GY"}},
-    targetingGroups: [],
-    effects: [{type: "Send this to", to: "Field"}]
-  }]
+  abilities: [
+    {
+      text: "Summon this from your hand.",
+      style: {type: "Activated"},
+      conditions: [{type: "In zone", zone: "Hand"}],
+      targetingGroups: [],
+      effects: [{type: "Summon this"}]
+    }, {
+      text: "When this is sent to the GY, you may summon it.",
+      style: {type: "Trigger", mandatory: false, trigger: {type: "This moves", to: "GY"}},
+      targetingGroups: [],
+      effects: [{type: "Send this to", to: "Field"}]
+    }
+  ]
 }

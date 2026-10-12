@@ -4,14 +4,14 @@ import { GameState } from './core';
 import type { Card, AbilityContext, PlayerState, ChainLink, WaitingFor } from './core';
 import CardUI from './components/CardUI.vue';
 import Modal from './components/Modal.vue';
-
-import { bomb, springish, springy } from "./cards";
+import { moveUp, moveDown } from "./util.ts";
+import { bomb, revivish, reviver, springish, springy, boardwipe } from "./cards";
 
 const us = 0 //our player, todo other views
 
 //this game object should be hidden from the client, so the only allowed usage
 //of it for now is this initialization and calling its methods! no peeking in
-const game = reactive(new GameState([{main: [bomb, springish, springy], ex: [], worlds: []}]))
+const game = reactive(new GameState([{main: [bomb, revivish, revivish, reviver, boardwipe], ex: [], worlds: []}]))
 const state = ref<PlayerState>(game.getPlayerState(us)) //todo use updatePlayerState() in onMounted
 
 const viewingCard = ref<Card|null>(null)
@@ -22,8 +22,18 @@ const targetOptions = ref<Record<string, Card[]>|null>(null)
 const targetSelections = ref<Record<string, Card[]>|null>(null)
 const targetAc = ref<AbilityContext|null>(null)
 
+//same thing as above more or less, should be a DU UIState type
+const triggerOrder = ref<AbilityContext[]>([])
+const confirmedTriggers = ref<AbilityContext[]>([]) //this is probably ChainLink[]
+
 const updatePlayerState = () => {
   state.value = game.getPlayerState(us)
+  //if it's time to do triggers, set up ui
+  if (state.value.waitingFor.type === "Triggers") {
+    const triggers = state.value.waitingFor.triggerPool
+    triggerOrder.value = [...triggers]
+    confirmedTriggers.value = [...triggers]
+  }
 }
 
 const cardClick = (card: Card) => {
@@ -77,6 +87,40 @@ const submitTargets = () => {
   targetSelections.value = null
   targetAc.value = null
   updatePlayerState()
+}
+
+const submitTriggers = () => {
+  //todo validate
+  if (state.value.waitingFor.type !== "Triggers") return
+  const finalTriggers = triggerOrder.value.filter(ac => 
+    ac.ability.style.type === "Trigger"
+    && (ac.ability.style.mandatory || confirmedTriggers.value.includes(ac))
+  )
+  //todo prov
+  //todo targeting!!
+  const triggersWithNoTargets: ChainLink[] = finalTriggers.map(ac => ({...ac, targets: {}}))
+  game.chain!.playerBatchTriggers(us, triggersWithNoTargets)
+  triggerOrder.value = []
+  confirmedTriggers.value = []
+  updatePlayerState()
+}
+
+const orderTriggerDown = (trigger: AbilityContext) => {
+  triggerOrder.value = moveDown(triggerOrder.value, trigger)
+}
+
+const orderTriggerUp = (trigger: AbilityContext) => {
+  triggerOrder.value = moveUp(triggerOrder.value, trigger)
+}
+
+const toggleTriggerConfirm = (trigger: AbilityContext) => {
+  if (trigger.ability.style.type !== "Trigger") return
+  if (trigger.ability.style.mandatory) return
+  if (confirmedTriggers.value.includes(trigger)) {
+    confirmedTriggers.value = confirmedTriggers.value.filter(ac => ac !== trigger)
+  } else {
+    confirmedTriggers.value.push(trigger)
+  }
 }
 
 const passPriority = () => {
@@ -165,20 +209,22 @@ const debugDraw = () => {
       <p class="mb-4">Order and confirm triggers:</p>
       <div class="flex justify-center items-center gap-4 border w-full p-4">
         <p>Resolves last</p>
-        <div v-for="ac of state.waitingFor.triggerPool.filter(ac => ac.card.controlledBy === ac.player)">
+        <div v-for="ac of triggerOrder">
           <p class="italic" v-if="ac.ability.style.type === 'Trigger' && ac.ability.style.mandatory">
             (mandatory)
           </p>
-          <CardUI class="border-2 p-4 mb-2" :card="ac.card"/>
-          <div class="grid grid-cols-3 text-center">
-            <div class="border cursor-pointer select-none">⮜</div>
+          <CardUI class="border-2 p-4 mb-2 cursor-pointer" :class="confirmedTriggers.includes(ac) ? `` : `bg-gray-400`" 
+            :card="ac.card" @click="toggleTriggerConfirm(ac)"
+            />
+          <div v-if="triggerOrder.length > 1" class="grid grid-cols-3 text-center">
+            <div class="border cursor-pointer select-none" @click="orderTriggerDown(ac)">⮜</div>
             <div>&nbsp;</div>
-            <div class="border cursor-pointer select-none">➤</div>
+            <div class="border cursor-pointer select-none" @click="orderTriggerUp(ac)">➤</div>
           </div>
         </div>
         <p>Resolves first</p>
       </div>
-      <p class="border p-1 cursor-pointer mt-4 select-none" @click="passPriority">Submit</p>
+      <p class="border p-1 cursor-pointer mt-4 select-none" @click="submitTriggers">Submit</p>
     </Modal>
   </div>
 </template>

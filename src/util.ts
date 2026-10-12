@@ -6,3 +6,23 @@ export const shuffle = <T>(array: T[]) => {
   }
   return copy
 }
+
+// Move an object one step lower (towards start)
+export const moveDown = <T>(arr: T[], obj: T): T[] => {
+  const index = arr.indexOf(obj);
+  if (index > 0) {
+    arr.splice(index, 1);
+    arr.splice(index - 1, 0, obj);
+  }
+  return arr;
+}
+
+// Move an object one step up (towards end)
+export const moveUp = <T>(arr: T[], obj: T): T[] => {
+  const index = arr.indexOf(obj);
+  if (index !== -1 && index < arr.length - 1) {
+    arr.splice(index, 1);
+    arr.splice(index + 1, 0, obj);
+  }
+  return arr;
+}
