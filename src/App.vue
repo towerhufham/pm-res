@@ -176,11 +176,11 @@ const debugDraw = () => {
       <p class="cursor-pointer select-none" @click="debugDraw">{{state.zoneCounts[us]!["Deck"]}}</p>
     </div>
 
-    <Modal v-if="viewingCard">
+    <Modal v-if="viewingCard" @dismiss="viewingCard = null">
       <p>Choose ability:</p>
       <div v-for="ability of viewingCard.abilities">
-        <p v-if="game.canActivateAbility({player: us, card: viewingCard, ability})" 
-          class="border-2 p-1 cursor-pointer transition-all hover:border-blue-500" 
+        <p class="border-2 p-1 cursor-pointer transition-all hover:border-blue-500" 
+          :class="game.canActivateAbility({player: us, card: viewingCard, ability}) ? '' : 'bg-gray-400'" 
           @click="abilityClick({player: us, card: viewingCard, ability})"
         >
           ◆{{ability.text}}
