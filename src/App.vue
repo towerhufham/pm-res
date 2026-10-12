@@ -5,13 +5,13 @@ import type { Card, AbilityContext, PlayerState, ChainLink, WaitingFor } from '.
 import CardUI from './components/CardUI.vue';
 import Modal from './components/Modal.vue';
 
-import { bomb, springish } from "./cards";
+import { bomb, springish, springy } from "./cards";
 
 const us = 0 //our player, todo other views
 
 //this game object should be hidden from the client, so the only allowed usage
 //of it for now is this initialization and calling its methods! no peeking in
-const game = reactive(new GameState([{main: [bomb, springish], ex: [], worlds: []}]))
+const game = reactive(new GameState([{main: [bomb, springish, springy], ex: [], worlds: []}]))
 const state = ref<PlayerState>(game.getPlayerState(us)) //todo use updatePlayerState() in onMounted
 
 const viewingCard = ref<Card|null>(null)
@@ -129,7 +129,7 @@ const debugDraw = () => {
     </section>
 
     <div class="absolute bottom-0 right-0 w-32 h-48 bg-gray-400 flex flex-col justify-center items-center">
-      <p @click="debugDraw">{{state.zoneCounts[us]!["Deck"]}}</p>
+      <p class="cursor-pointer select-none" @click="debugDraw">{{state.zoneCounts[us]!["Deck"]}}</p>
     </div>
 
     <Modal v-if="viewingCard">
@@ -154,15 +154,31 @@ const debugDraw = () => {
           />
         </div>
       </div>
-      <p class="border p-1 cursor-pointer" @click="submitTargets">Submit</p>
+      <p class="border p-1 cursor-pointer select-none" @click="submitTargets">Submit</p>
     </Modal>
 
     <Modal v-if="state.waitingFor.type === 'Response window'">
-      <p class="border p-1 cursor-pointer" @click="passPriority">Pass priority</p>
+      <p class="border p-1 cursor-pointer select-none" @click="passPriority">Pass priority</p>
     </Modal>
 
     <Modal v-if="state.waitingFor.type === 'Triggers'">
-      <p>comign soon :3</p>
+      <p class="mb-4">Order and confirm triggers:</p>
+      <div class="flex justify-center items-center gap-4 border w-full p-4">
+        <p>Resolves last</p>
+        <div v-for="ac of state.waitingFor.triggerPool.filter(ac => ac.card.controlledBy === ac.player)">
+          <p class="italic" v-if="ac.ability.style.type === 'Trigger' && ac.ability.style.mandatory">
+            (mandatory)
+          </p>
+          <CardUI class="border-2 p-4 mb-2" :card="ac.card"/>
+          <div class="grid grid-cols-3 text-center">
+            <div class="border cursor-pointer select-none">⮜</div>
+            <div>&nbsp;</div>
+            <div class="border cursor-pointer select-none">➤</div>
+          </div>
+        </div>
+        <p>Resolves first</p>
+      </div>
+      <p class="border p-1 cursor-pointer mt-4 select-none" @click="passPriority">Submit</p>
     </Modal>
   </div>
 </template>
