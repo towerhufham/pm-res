@@ -168,7 +168,7 @@ const debugDraw = () => {
     <section class="absolute right-0 top-0 flex flex-col">
       <CardUI v-for="card of game.cardsInZone(us, 'GY')" 
         :card="card" :selectable="selectableCards().includes(card)" 
-        class="w-32 hover:-translate-x-4" @click="cardClick(card)"
+        class="-mb-32 hover:-translate-x-4" @click="cardClick(card)"
       />
     </section>
 
@@ -213,7 +213,7 @@ const debugDraw = () => {
           <p class="italic" v-if="ac.ability.style.type === 'Trigger' && ac.ability.style.mandatory">
             (mandatory)
           </p>
-          <CardUI class="border-2 p-4 mb-2 cursor-pointer" :class="confirmedTriggers.includes(ac) ? `` : `bg-gray-400`" 
+          <CardUI class="border-2 p-4 mb-2 cursor-pointer" :class="confirmedTriggers.includes(ac) ? `` : `bg-gray-400!`" 
             :card="ac.card" @click="toggleTriggerConfirm(ac)"
             />
           <div v-if="triggerOrder.length > 1" class="grid grid-cols-3 text-center">
