@@ -110,14 +110,14 @@ const debugDraw = () => {
     <section class="flex gap-1">
       <CardUI v-for="card of game.cardsInZone(us, 'Field')" 
         :card="card" :selectable="selectableCards().includes(card)" 
-        class="w-32 h-48 hover:-translate-y-4" @click="cardClick(card)"
+        class="hover:-translate-y-4" @click="cardClick(card)"
       />
     </section>
 
     <section class="flex gap-1">
       <CardUI v-for="card of game.cardsInZone(us, 'Hand')" 
         :card="card" :selectable="selectableCards().includes(card)" 
-        class="w-32 h-48 hover:-translate-y-4" @click="cardClick(card)"
+        class="hover:-translate-y-4" @click="cardClick(card)"
       />
     </section>
 
@@ -146,7 +146,7 @@ const debugDraw = () => {
 
     <Modal v-if="targetSelections && targetOptions">
       <p>Choose target(s):</p>
-      <div v-for="[tag, options] of Object.entries(targetOptions)" class="border-2 p-1">
+      <div v-for="[tag, options] of Object.entries(targetOptions)" class="border-2 p-4">
         <p>Tag "{{ tag }}":</p>
         <div class="flex gap-2 justify-center items-center flex-wrap">
           <CardUI v-for="card of options" :card :selectable="true" 

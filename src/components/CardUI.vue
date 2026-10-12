@@ -10,14 +10,14 @@ const props = defineProps<{
 
 const extraClasses = computed(() => {
   let classes = ""
-  if (props.selectable) classes += "hover:border-blue-500 cursor-pointer"
-  if (props.selected) classes += "border-yellow-600 cursor-pointer"
+  if (props.selected) classes += "border-yellow-300 cursor-pointer"
+  else if (props.selectable) classes += "hover:border-blue-500 cursor-pointer"
   return classes
 })
 </script>
 
 <template>
-  <article :class="`flex flex-col border-4 px-1 transition-all transform ${extraClasses}`">
+  <article :class="`w-32 h-48 flex flex-col border-4 px-1 transition-all transform ${extraClasses}`">
     <div class="flex justify-between">
       <h2>{{card.name}}</h2>
       <div class="flex">
