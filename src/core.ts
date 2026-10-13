@@ -186,6 +186,7 @@ export class GameState {
   }
 
   canActivateAbility(ac: AbilityContext): boolean {
+    //todo this needs to consider quick abilities and the current chain state
     if (ac.ability.style.type !== "Activated") return false
     //todo hopt
     if (ac.ability.conditions) {
@@ -217,7 +218,11 @@ export class GameState {
     if (!this.canActivateAbility(link)) {
       throw new RulesError("trying to activate non-activatable ability", link)
     }
-    this.chain = new Chain(this, link)
+    if (!this.chain) {
+      this.chain = new Chain(this, link)
+    } else {
+      this.chain.playerResponds(link)
+    }
   }
 
   checkForTriggers(atoms: EffectAtom[]): AbilityContext[] {
@@ -275,10 +280,12 @@ export class GameState {
       //when there is a chain it gets tricky
       if (this.chain.playerWithPriority === player) {
         if (this.chain.state === "Building") {
-          //todo how get these?
-          return {type: "Response window", options: [], links: this.chain.links}
+          const options = this.getAllActivatableAbilities(player)
+            .filter(ac => ac.ability.style.type === "Activated" && ac.ability.style.quick)
+            .filter(ac => !this.chain!.isAbilityInChain(ac))
+          return {type: "Response window", options, links: this.chain.links}
         } else if (this.chain.state === "Ordering triggers") {
-          //todo how get these too?
+          //todo i forgot what "triggers: []" is for...
           return {type: "Triggers", triggers: [], currentLinks: this.chain.links, triggerPool: this.chain.pendingTriggerPool}
         } else {
           //i think this might be an unreachable state? unsure
@@ -433,19 +440,15 @@ export type CardCriteria = { type: "Any of", subcriteria: CardCriteria[] }
 
 export type Ability = {
   text: string
-  style: {type: "Activated"} | {type: "Trigger", mandatory: boolean, trigger: Trigger}
+  style: {type: "Activated", quick: boolean} | {type: "Trigger", mandatory: boolean, trigger: Trigger}
   conditions?: Condition[]
   targetingGroups: TargetingGroup[]
   effects: Effect[]
   //todo hopt
 }
 
-// type TargetPayload = {type: "Single Card", target: Card}
-//   | {type: "Multi Card", targets: Card[]}
-
 export type AbilityContext = {player: number, card: Card, ability: Ability}
 export type ChainLink = AbilityContext & {targets: FinalizedTargets}
-
 
 //--------------- Interface ---------------//
 

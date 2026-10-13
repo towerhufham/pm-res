@@ -11,13 +11,13 @@ export const bomb: CardDefinition = {
   abilities: [
     {
       text: "Summon this from your hand.",
-      style: {type: "Activated"},
+      style: {type: "Activated", quick: false},
       conditions: [{type: "In zone", zone: "Hand"}],
       targetingGroups: [],
       effects: [{type: "Summon this"}]
     }, {
       text: "Send target card from the field to the GY.",
-      style: {type: "Activated"},
+      style: {type: "Activated", quick: false},
       conditions: [{type: "In zone", zone: "Field"}],
       targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: ""}],
       effects: [{type: "Send targets to", to: "GY", tag: ""}]
@@ -34,7 +34,7 @@ export const springy: CardDefinition = {
   abilities: [
     {
       text: "Summon this from your hand.",
-      style: {type: "Activated"},
+      style: {type: "Activated", quick: false},
       conditions: [{type: "In zone", zone: "Hand"}],
       targetingGroups: [],
       effects: [{type: "Summon this"}]
@@ -56,7 +56,7 @@ export const roundabout: CardDefinition = {
   abilities: [
     {
       text: "Summon this from your hand.",
-      style: {type: "Activated"},
+      style: {type: "Activated", quick: false},
       conditions: [{type: "In zone", zone: "Hand"}],
       targetingGroups: [],
       effects: [{type: "Summon this"}]
@@ -83,7 +83,7 @@ export const springish: CardDefinition = {
   abilities: [
     {
       text: "Summon this from your hand.",
-      style: {type: "Activated"},
+      style: {type: "Activated", quick: false},
       conditions: [{type: "In zone", zone: "Hand"}],
       targetingGroups: [],
       effects: [{type: "Summon this"}]
@@ -104,7 +104,7 @@ export const boardwipe: CardDefinition = {
   ex: false,
   abilities: [{
     text: "Discard this and send all cards on the field to the GY.",
-    style: {type: "Activated"},
+    style: {type: "Activated", quick: true},
     conditions: [{type: "In zone", zone: "Hand"}],
     targetingGroups: [],
     effects: [{type: "Send all to GY"}, {type: "Send this to", to: "GY"}]
@@ -119,7 +119,7 @@ export const basketball: CardDefinition = {
   ex: false,
   abilities: [{
     text: "Summon this from your hand. Then return it to your hand. Then summon it. Then return it to your hand. Then send it to the GY.",
-    style: {type: "Activated"},
+    style: {type: "Activated", quick: false},
     conditions: [{type: "In zone", zone: "Hand"}],
     targetingGroups: [],
     effects: [
@@ -141,7 +141,7 @@ export const reviver: CardDefinition = {
   abilities: [
     {
       text: "Summon this from your hand.",
-      style: {type: "Activated"},
+      style: {type: "Activated", quick: false},
       conditions: [{type: "In zone", zone: "Hand"}],
       targetingGroups: [],
       effects: [{type: "Summon this"}]
@@ -163,7 +163,7 @@ export const revivish: CardDefinition = {
   abilities: [
     {
       text: "Summon this from your hand.",
-      style: {type: "Activated"},
+      style: {type: "Activated", quick: false},
       conditions: [{type: "In zone", zone: "Hand"}],
       targetingGroups: [],
       effects: [{type: "Summon this"}]

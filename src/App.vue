@@ -26,13 +26,23 @@ const targetAc = ref<AbilityContext|null>(null)
 const triggerOrder = ref<AbilityContext[]>([])
 const confirmedTriggers = ref<AbilityContext[]>([]) //this is probably ChainLink[]
 
+//yup, need DU
+const responseOptions = ref<AbilityContext[]>([])
+const confirmedResponses = ref<AbilityContext[]>([])
+
 const updatePlayerState = () => {
   state.value = game.getPlayerState(us)
+  //if it's time to respond, set up ui
+  if (state.value.waitingFor.type === "Response window") {
+    const responses = state.value.waitingFor.options
+    responseOptions.value = [...responses]
+    confirmedResponses.value = []
+  }
   //if it's time to do triggers, set up ui
-  if (state.value.waitingFor.type === "Triggers") {
+  else if (state.value.waitingFor.type === "Triggers") {
     const triggers = state.value.waitingFor.triggerPool
     triggerOrder.value = [...triggers]
-    confirmedTriggers.value = [...triggers]
+    confirmedTriggers.value = [...triggers] //todo maybe should start with mandatory only
   }
 }
 
@@ -123,6 +133,27 @@ const toggleTriggerConfirm = (trigger: AbilityContext) => {
   }
 }
 
+const toggleResponseConfirm = (response: AbilityContext) => {
+  if (response.ability.style.type !== "Activated") return
+  if (!response.ability.style.quick) return
+  if (confirmedResponses.value.includes(response)) {
+    confirmedResponses.value = confirmedResponses.value.filter(ac => ac !== response)
+  } else {
+    confirmedResponses.value.push(response)
+  }
+}
+
+const confirmResponses = () => {
+  //todo targeting
+  if (state.value.waitingFor.type !== "Response window") return
+  for (const ac of confirmedResponses.value) {
+    game.startActivation({...ac, targets: {}})
+  }
+  responseOptions.value = []
+  confirmedResponses.value = []
+  updatePlayerState()
+}
+
 const passPriority = () => {
   if (state.value.waitingFor.type !== "Response window") return
   //todo prov
@@ -202,7 +233,19 @@ const debugDraw = () => {
     </Modal>
 
     <Modal v-if="state.waitingFor.type === 'Response window'">
-      <p class="border p-1 cursor-pointer select-none" @click="passPriority">Pass priority</p>
+      <div class="flex justify-center items-center gap-4 border w-full p-4">
+        <div v-for="ac of responseOptions">
+          <CardUI class="border-2 p-4 mb-2 cursor-pointer" :class="confirmedResponses.includes(ac) ? `` : `bg-gray-400!`" 
+            :card="ac.card" @click="toggleResponseConfirm(ac)"
+            />
+        </div>
+      </div>
+      <p v-if="confirmedResponses.length === 0" class="border p-1 cursor-pointer select-none" @click="passPriority">
+        Pass priority
+      </p>
+      <p v-else class="border p-1 cursor-pointer select-none" @click="confirmResponses">
+        {{ confirmedResponses.length > 1 ? "Confirm responses" : "Confirm response" }}
+      </p>
     </Modal>
 
     <Modal v-if="state.waitingFor.type === 'Triggers'">

@@ -24,7 +24,6 @@ export class Chain {
 
   playerResponds(link: ChainLink) {
     //todo make sure this is the player with priority
-    //you can only respond with a reactor (quick effect) i think??
     this.links.push(link)
     this.consecutivePasses = 0
     if (this.inOriginalChain) {
@@ -109,5 +108,14 @@ export class Chain {
     this.pendingTriggerPool = this.pendingTriggerPool.filter(ac => ac.player !== player)
     this.playerWithPriority = this.game.nextPlayer(this.playerWithPriority)
     this.tryOrderingTriggers()
+  }
+
+  isAbilityInChain(ac: AbilityContext): boolean {
+    for (const link of this.links) {
+      if (ac.player === link.player && ac.card === link.card && ac.ability === link.ability) {
+        return true
+      }
+    }
+    return false
   }
 }
