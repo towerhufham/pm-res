@@ -30,13 +30,20 @@ const confirmedTriggers = ref<AbilityContext[]>([]) //this is probably ChainLink
 const responseOptions = ref<AbilityContext[]>([])
 const confirmedResponses = ref<AbilityContext[]>([])
 
+//user toggleable 
+const autoPassWhenNoResponses = ref(true)
+
 const updatePlayerState = () => {
   state.value = game.getPlayerState(us)
   //if it's time to respond, set up ui
   if (state.value.waitingFor.type === "Response window") {
     const responses = state.value.waitingFor.options
-    responseOptions.value = [...responses]
-    confirmedResponses.value = []
+    if (autoPassWhenNoResponses && responses.length === 0) {
+      passPriority()
+    } else {
+      responseOptions.value = [...responses]
+      confirmedResponses.value = []
+    }
   }
   //if it's time to do triggers, set up ui
   else if (state.value.waitingFor.type === "Triggers") {
@@ -181,6 +188,10 @@ const debugDraw = () => {
       <p>Waiting for: {{ state.waitingFor.type }}</p>
       <p>Chain: {{ game.chain ? game.chain.state : "No chain" }}</p>
     </div>
+
+    <p class="absolute top-0 left-0 border m-1 p-1 cursor-pointer" @click="autoPassWhenNoResponses = !autoPassWhenNoResponses">
+      {{ autoPassWhenNoResponses ? "Auto-passing windows with no responses" : "Always asks for a response" }}
+    </p>
 
     <section class="flex gap-1">
       <CardUI v-for="card of game.cardsInZone(us, 'Field')" 
