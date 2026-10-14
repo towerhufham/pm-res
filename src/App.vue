@@ -17,18 +17,28 @@ const state = ref<PlayerState>(game.getPlayerState(us)) //todo use updatePlayerS
 
 const viewingCard = ref<Card|null>(null)
 
-//todo these are always set and nulled the same so maybe they should be one thing
-const targetOptions = ref<Record<string, Card[]>>({})
-const targetSelections = ref<Record<string, Card[]>>({})
-const targetAc = ref<AbilityContext|null>(null)
+type ClientOnlyState = {
+  type: "Standby"
+} | {
+  type: "Viewing Card"
+  card: Card
+} | {
+  type: "Targeting"
+  options: Record<string, Card[]>
+  selections: Record<string, Card[]>
+  ac: AbilityContext
+} | {
+  type: "Triggers"
+  order: AbilityContext[]
+  confirmed: AbilityContext[]
+} | {
+  type: "Response window"
+  options: AbilityContext[] //todo can't this come from the playerstate?
+  confirmed: AbilityContext[] //todo order is important here too, right?
+}
 
-//same thing as above more or less, should be a DU UIState type
-const triggerOrder = ref<AbilityContext[]>([])
-const confirmedTriggers = ref<AbilityContext[]>([]) //this is probably ChainLink[]
-
-//yup, need DU
-const responseOptions = ref<AbilityContext[]>([])
-const confirmedResponses = ref<AbilityContext[]>([])
+//todo epiphany: all client state should be in a controller class this thinly wraps
+const clientState = ref<ClientOnlyState>({type: "Standby"})
 
 //user toggleable 
 const autoPassWhenNoResponses = ref(true)
@@ -38,18 +48,27 @@ const updatePlayerState = () => {
   //if it's time to respond, set up ui
   if (state.value.waitingFor.type === "Response window") {
     const responses = state.value.waitingFor.options
-    if (autoPassWhenNoResponses && responses.length === 0) {
+    if (autoPassWhenNoResponses.value && responses.length === 0) {
       passPriority()
     } else {
-      responseOptions.value = [...responses]
-      confirmedResponses.value = []
+      clientState.value = {
+        type: "Response window",
+        options: [...responses],
+        confirmed: []
+      }
     }
   }
   //if it's time to do triggers, set up ui
   else if (state.value.waitingFor.type === "Triggers") {
     const triggers = state.value.waitingFor.triggerPool
-    triggerOrder.value = [...triggers]
-    confirmedTriggers.value = [...triggers] //todo maybe should start with mandatory only
+    clientState.value = {
+      type: "Triggers",
+      order: [...triggers],
+      confirmed: [...triggers] //todo maybe should start with mandatory only
+    }
+  } else {
+    //todo this might be incorrect?
+    clientState.value = {type: "Standby"}
   }
 }
 
@@ -70,85 +89,86 @@ const abilityClick = (ac: AbilityContext) => {
     for (const group of ac.ability.targetingGroups) {
       optionSets[group.tag] = game.getAllByCriteria(us, group.criteria)
     }
-    targetOptions.value = optionSets
-    //todo fix this because it's really dumb
-    targetSelections.value = {}
-    for (const [tag, _] of Object.entries(optionSets)) {
-      targetSelections.value[tag] = []
+    clientState. value = {
+      type: "Targeting",
+      options: optionSets,
+      selections: {}, //this gets overwritten by a v-model
+      ac
     }
-    targetAc.value = ac
   }
 }
 
 const submitTargets = () => {
   //todo validation goes... somewhere
-  if (!targetAc.value) return
+  if (clientState.value.type !== "Targeting") return
   //todo prov
+  const ac = clientState.value.ac
   const link: ChainLink = {
     player: us, 
-    card: targetAc.value.card, 
-    ability: targetAc.value.ability, 
-    targets: targetSelections.value!
+    card: ac.card, 
+    ability: ac.ability, 
+    targets: clientState.value.selections
   }
   game.startActivation(link)
-  targetOptions.value = {}
-  targetSelections.value = {}
-  targetAc.value = null
   updatePlayerState()
 }
 
 const submitTriggers = () => {
   //todo validate
   if (state.value.waitingFor.type !== "Triggers") return
-  const finalTriggers = triggerOrder.value.filter(ac => 
+  if (clientState.value.type !== "Triggers") return
+  const confirmed = clientState.value.confirmed //needed to bring it past function boundary
+  const finalTriggers = clientState.value.order.filter(ac => 
     ac.ability.style.type === "Trigger"
-    && (ac.ability.style.mandatory || confirmedTriggers.value.includes(ac))
+    && (ac.ability.style.mandatory || confirmed.includes(ac))
   )
   //todo prov
   //todo targeting!!
   const triggersWithNoTargets: ChainLink[] = finalTriggers.map(ac => ({...ac, targets: {}}))
   game.chain!.playerBatchTriggers(us, triggersWithNoTargets)
-  triggerOrder.value = []
-  confirmedTriggers.value = []
   updatePlayerState()
 }
 
 const orderTriggerDown = (trigger: AbilityContext) => {
-  triggerOrder.value = moveDown(triggerOrder.value, trigger)
+  if (clientState.value.type !== "Triggers") return
+  clientState.value.order = moveDown(clientState.value.order, trigger)
 }
 
 const orderTriggerUp = (trigger: AbilityContext) => {
-  triggerOrder.value = moveUp(triggerOrder.value, trigger)
+  if (clientState.value.type !== "Triggers") return
+  clientState.value.order = moveUp(clientState.value.order, trigger)
 }
 
 const toggleTriggerConfirm = (trigger: AbilityContext) => {
+  if (clientState.value.type !== "Triggers") return
   if (trigger.ability.style.type !== "Trigger") return
   if (trigger.ability.style.mandatory) return
-  if (confirmedTriggers.value.includes(trigger)) {
-    confirmedTriggers.value = confirmedTriggers.value.filter(ac => ac !== trigger)
+  if (clientState.value.confirmed.includes(trigger)) {
+    clientState.value.confirmed = clientState.value.confirmed.filter(ac => ac !== trigger)
   } else {
-    confirmedTriggers.value.push(trigger)
+    clientState.value.confirmed.push(trigger)
   }
 }
 
 const toggleResponseConfirm = (response: AbilityContext) => {
+  if (clientState.value.type !== "Response window") return
   if (response.ability.style.type !== "Activated") return
   if (!response.ability.style.quick) return
-  if (confirmedResponses.value.includes(response)) {
-    confirmedResponses.value = confirmedResponses.value.filter(ac => ac !== response)
+  if (clientState.value.confirmed.includes(response)) {
+    clientState.value.confirmed = clientState.value.confirmed.filter(ac => ac !== response)
   } else {
-    confirmedResponses.value.push(response)
+    clientState.value.confirmed.push(response)
   }
 }
 
 const confirmResponses = () => {
-  //todo targeting
+  //todo these states are often awfully similar...
   if (state.value.waitingFor.type !== "Response window") return
-  for (const ac of confirmedResponses.value) {
+  if (clientState.value.type !== "Response window") return
+  for (const ac of clientState.value.confirmed) {
+    //todo prov & targeting
     game.startActivation({...ac, targets: {}})
   }
-  responseOptions.value = []
-  confirmedResponses.value = []
   updatePlayerState()
 }
 
@@ -221,40 +241,40 @@ const debugDraw = () => {
       </div>
     </Modal>
 
-    <Modal v-if="Object.keys(targetOptions).length > 0">
+    <Modal v-if="clientState.type === 'Targeting'">
       <p>Choose target(s):</p>
-      <TargetingBlock v-model="targetSelections" :option-sets="targetOptions"/>
+      <TargetingBlock v-model="clientState.selections" :option-sets="clientState.options"/>
       <p class="border p-1 cursor-pointer select-none" @click="submitTargets">Submit</p>
     </Modal>
 
-    <Modal v-if="state.waitingFor.type === 'Response window'">
+    <Modal v-if="clientState.type === 'Response window'">
       <div class="flex justify-center items-center gap-4 border w-full p-4">
-        <div v-for="ac of responseOptions">
-          <CardUI class="border-2 p-4 mb-2 cursor-pointer" :class="confirmedResponses.includes(ac) ? `` : `bg-gray-400!`" 
+        <div v-for="ac of clientState.options">
+          <CardUI class="border-2 p-4 mb-2 cursor-pointer" :class="clientState.confirmed.includes(ac) ? `` : `bg-gray-400!`" 
             :card="ac.card" @click="toggleResponseConfirm(ac)"
             />
         </div>
       </div>
-      <p v-if="confirmedResponses.length === 0" class="border p-1 cursor-pointer select-none" @click="passPriority">
+      <p v-if="clientState.confirmed.length === 0" class="border p-1 cursor-pointer select-none" @click="passPriority">
         Pass priority
       </p>
       <p v-else class="border p-1 cursor-pointer select-none" @click="confirmResponses">
-        {{ confirmedResponses.length > 1 ? "Confirm responses" : "Confirm response" }}
+        {{ clientState.confirmed.length > 1 ? "Confirm responses" : "Confirm response" }}
       </p>
     </Modal>
 
-    <Modal v-if="state.waitingFor.type === 'Triggers'">
+    <Modal v-if="clientState.type === 'Triggers'">
       <p class="mb-4">Order and confirm triggers:</p>
       <div class="flex justify-center items-center gap-4 border w-full p-4">
         <p>Resolves last</p>
-        <div v-for="ac of triggerOrder">
+        <div v-for="ac of clientState.order">
           <p class="italic" v-if="ac.ability.style.type === 'Trigger' && ac.ability.style.mandatory">
             (mandatory)
           </p>
-          <CardUI class="border-2 p-4 mb-2 cursor-pointer" :class="confirmedTriggers.includes(ac) ? `` : `bg-gray-400!`" 
+          <CardUI class="border-2 p-4 mb-2 cursor-pointer" :class="clientState.confirmed.includes(ac) ? `` : `bg-gray-400!`" 
             :card="ac.card" @click="toggleTriggerConfirm(ac)"
             />
-          <div v-if="triggerOrder.length > 1" class="grid grid-cols-3 text-center">
+          <div v-if="clientState.order.length > 1" class="grid grid-cols-3 text-center">
             <div class="border cursor-pointer select-none" @click="orderTriggerDown(ac)">⮜</div>
             <div>&nbsp;</div>
             <div class="border cursor-pointer select-none" @click="orderTriggerUp(ac)">➤</div>

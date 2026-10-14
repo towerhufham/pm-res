@@ -6,7 +6,7 @@
   const props = defineProps<{optionSets: Record<string, Card[]>}>()
   const model = defineModel<Record<string, Card[]>>()
 
-  const setupSelected = () => {
+  const setupSelections = () => {
     //due to vue model quirks, we must create a whole new object and assign it!
     const sel: Record<string, Card[]> = {}
     for (const tag of Object.keys(props.optionSets))  {
@@ -15,7 +15,7 @@
     model.value = sel
   }
 
-  watch(() => props.optionSets, setupSelected, {immediate: true})
+  watch(() => props.optionSets, setupSelections, {immediate: true})
 
   const targetClick = (tag: string, card: Card) => {
     if (!model.value || !model.value[tag]) return
