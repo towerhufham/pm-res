@@ -6,6 +6,7 @@ import CardUI from './components/CardUI.vue';
 import Modal from './components/Modal.vue';
 import { moveUp, moveDown } from "./util.ts";
 import { bomb, revivish, reviver, springish, springy, boardwipe } from "./cards";
+import TargetingBlock from './components/TargetingBlock.vue';
 
 const us = 0 //our player, todo other views
 
@@ -16,10 +17,9 @@ const state = ref<PlayerState>(game.getPlayerState(us)) //todo use updatePlayerS
 
 const viewingCard = ref<Card|null>(null)
 
-//all null if we're not currently targeting anything
 //todo these are always set and nulled the same so maybe they should be one thing
-const targetOptions = ref<Record<string, Card[]>|null>(null)
-const targetSelections = ref<Record<string, Card[]>|null>(null)
+const targetOptions = ref<Record<string, Card[]>>({})
+const targetSelections = ref<Record<string, Card[]>>({})
 const targetAc = ref<AbilityContext|null>(null)
 
 //same thing as above more or less, should be a DU UIState type
@@ -80,15 +80,6 @@ const abilityClick = (ac: AbilityContext) => {
   }
 }
 
-const targetClick = (tag: string, card: Card) => {
-  if (!targetSelections.value || !targetSelections.value[tag]) return
-  if (targetSelections.value[tag].includes(card)) {
-    targetSelections.value[tag] = targetSelections.value[tag].filter(c => c !== card)
-  } else {
-    targetSelections.value[tag].push(card)
-  }
-}
-
 const submitTargets = () => {
   //todo validation goes... somewhere
   if (!targetAc.value) return
@@ -100,8 +91,8 @@ const submitTargets = () => {
     targets: targetSelections.value!
   }
   game.startActivation(link)
-  targetOptions.value = null
-  targetSelections.value = null
+  targetOptions.value = {}
+  targetSelections.value = {}
   targetAc.value = null
   updatePlayerState()
 }
@@ -230,16 +221,9 @@ const debugDraw = () => {
       </div>
     </Modal>
 
-    <Modal v-if="targetSelections && targetOptions">
+    <Modal v-if="Object.keys(targetOptions).length > 0">
       <p>Choose target(s):</p>
-      <div v-for="[tag, options] of Object.entries(targetOptions)" class="border-2 p-4">
-        <p>Tag "{{ tag }}":</p>
-        <div class="flex gap-2 justify-center items-center flex-wrap">
-          <CardUI v-for="card of options" :card :selectable="true" 
-            :selected="targetSelections[tag]!.includes(card)" @click="targetClick(tag, card)"
-          />
-        </div>
-      </div>
+      <TargetingBlock v-model="targetSelections" :option-sets="targetOptions"/>
       <p class="border p-1 cursor-pointer select-none" @click="submitTargets">Submit</p>
     </Modal>
 

@@ -66,7 +66,7 @@ it("can take targets with abilities", () => {
   const game = emptyGame()
   const card = game.spawnCard(0, bomb)
   game.moveCard(card, "Field")
-  game.startActivation({player: 0, card, ability: card.abilities[1]!, targets: {"": [card]}})
+  game.startActivation({player: 0, card, ability: card.abilities[1]!, targets: {"lol": [card]}})
   game.chain?.playerPasses()
   expect(card.zone).toBe("GY")
   expect(game.chain).toBeNull()

@@ -19,8 +19,8 @@ export const bomb: CardDefinition = {
       text: "Send target card from the field to the GY.",
       style: {type: "Activated", quick: false},
       conditions: [{type: "In zone", zone: "Field"}],
-      targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: ""}],
-      effects: [{type: "Send targets to", to: "GY", tag: ""}]
+      targetingGroups: [{type: "Single Target", criteria: [{type: "In Zone", zone: "Field"}], tag: "lol"}],
+      effects: [{type: "Send targets to", to: "GY", tag: "lol"}]
     }
   ]
 }
